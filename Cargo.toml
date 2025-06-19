@@ -34,8 +34,6 @@ anyhow = "1.0"
 thiserror = "1.0"
 # UUID for message IDs
 uuid = { version = "1.0", features = ["v4", "serde"] }
-# System utilities (Unix-only)
-nix = { version = "0.27", target_family = "unix" }
 # Cross-platform system information
 sysinfo = "0.30"
 # Process management
@@ -64,10 +62,13 @@ rand = "0.8"
 # X.509 certificate parsing
 x509-parser = "0.16"
 
-# Windows-specific dependencies
+# Platform-specific dependencies
+[target.'cfg(unix)'.dependencies]
+nix = "0.27"
+
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.6"
-winapi = { version = "0.3", features = ["winuser", "winsvc", "advapi32"] }
+winapi = { version = "0.3", features = ["winuser", "winsvc"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
