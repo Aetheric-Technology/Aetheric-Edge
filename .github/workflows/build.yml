@@ -1,10 +1,12 @@
-name: Release
+name: Build and Release
 
 on:
   push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,87 +14,89 @@ permissions:
 env:
   CARGO_INCREMENTAL: 0
   CARGO_NET_RETRY: 10
+  CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
   RUSTUP_MAX_RETRIES: 10
 
 jobs:
-  create-release:
-    name: Create Release
+  # Quick checks first
+  checks:
+    name: Quality Checks
     runs-on: ubuntu-latest
-    outputs:
-      release_id: ${{ steps.create_release.outputs.id }}
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
       
-      - name: Get version from tag
-        id: tag_version
-        run: |
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ steps.tag_version.outputs.version }}
-          draft: true
-          prerelease: ${{ contains(steps.tag_version.outputs.version, '-') }}
+          components: rustfmt, clippy
+      
+      - uses: Swatinem/rust-cache@v2
+      
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      
+      - name: Check compilation
+        run: cargo check --all-targets --all-features
+      
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings -A dead_code
+      
+      - name: Run tests
+        run: cargo test --all-features
 
-  build-release:
-    name: Build Release - ${{ matrix.platform.os-name }}
-    needs: create-release
+  # Multi-platform builds
+  build:
+    name: Build - ${{ matrix.platform.name }}
     runs-on: ${{ matrix.platform.os }}
+    needs: checks
     strategy:
       fail-fast: false
       matrix:
         platform:
           # Linux targets
-          - os-name: Linux-x86_64
+          - name: Linux-x86_64
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             use_cross: false
           
-          - os-name: Linux-x86_64-musl
+          - name: Linux-x86_64-musl
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             use_cross: true
           
-          - os-name: Linux-aarch64
+          - name: Linux-aarch64
             os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             use_cross: true
           
-          - os-name: Linux-arm
+          - name: Linux-arm
             os: ubuntu-latest
             target: armv7-unknown-linux-gnueabihf
             use_cross: true
           
-          - os-name: Linux-i686
+          - name: Linux-i686
             os: ubuntu-latest
             target: i686-unknown-linux-gnu
             use_cross: true
           
           # Windows targets
-          - os-name: Windows-x86_64
+          - name: Windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
             use_cross: false
           
-          - os-name: Windows-aarch64
+          - name: Windows-aarch64
             os: windows-latest
             target: aarch64-pc-windows-msvc
             use_cross: false
           
           # macOS targets
-          - os-name: macOS-x86_64
+          - name: macOS-x86_64
             os: macos-latest
             target: x86_64-apple-darwin
             use_cross: false
           
-          - os-name: macOS-aarch64
+          - name: macOS-aarch64
             os: macos-latest
             target: aarch64-apple-darwin
             use_cross: false
@@ -110,7 +114,7 @@ jobs:
         with:
           key: ${{ matrix.platform.target }}
       
-      # Use houseabsolute/actions-rust-cross for cross-compilation
+      # Cross-compilation using houseabsolute/actions-rust-cross
       - name: Build with cross
         if: matrix.platform.use_cross
         uses: houseabsolute/actions-rust-cross@v1
@@ -120,34 +124,32 @@ jobs:
           args: "--locked --release"
           strip: true
       
-      # Native compilation for same-architecture targets
+      # Native compilation
       - name: Build native
         if: ${{ !matrix.platform.use_cross }}
         env:
           RUSTFLAGS: "-A dead_code"
         run: cargo build --locked --release --target ${{ matrix.platform.target }}
       
-      # Strip binaries to reduce size (for native builds)
-      - name: Strip binaries (Unix)
+      # Strip binaries for native builds (Unix only)
+      - name: Strip binaries
         if: ${{ !matrix.platform.use_cross && matrix.platform.os != 'windows-latest' }}
         run: |
           strip target/${{ matrix.platform.target }}/release/aetheric-agent
           strip target/${{ matrix.platform.target }}/release/aetheric
       
-      - name: Get version from tag
-        id: tag_version
-        shell: bash
-        run: |
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      
+      # Package binaries for releases
       - name: Package binaries
+        if: startsWith(github.ref, 'refs/tags/v')
         id: package
         shell: bash
         run: |
+          # Get version from tag
+          version=${GITHUB_REF#refs/tags/}
+          
           # Setup variables
           binary_name="aetheric"
           agent_name="aetheric-agent"
-          version="${{ steps.tag_version.outputs.version }}"
           dirname="${binary_name}-${version}-${{ matrix.platform.target }}"
           
           # Create package directory
@@ -170,34 +172,37 @@ jobs:
           if [[ "${{ matrix.platform.os }}" == "windows-latest" ]]; then
             7z a "${dirname}.zip" "$dirname"
             echo "asset=${dirname}.zip" >> $GITHUB_OUTPUT
-            echo "asset_content_type=application/zip" >> $GITHUB_OUTPUT
           else
             tar -czf "${dirname}.tar.gz" "$dirname"
             echo "asset=${dirname}.tar.gz" >> $GITHUB_OUTPUT
-            echo "asset_content_type=application/gzip" >> $GITHUB_OUTPUT
           fi
       
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Upload artifacts for releases
+      - name: Upload release artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ steps.package.outputs.asset }}
-          asset_name: ${{ steps.package.outputs.asset }}
-          asset_content_type: ${{ steps.package.outputs.asset_content_type }}
+          name: ${{ matrix.platform.name }}
+          path: ${{ steps.package.outputs.asset }}
+          retention-days: 1
 
-  build-installers:
-    name: Build Installation Scripts
-    needs: create-release
+  # Create GitHub release
+  release:
+    name: Create Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
-      - name: Get version from tag
-        id: tag_version
-        run: |
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
       
       - name: Create installation scripts
         run: |
@@ -370,56 +375,30 @@ jobs:
           Write-Info "Restart your terminal to use 'aetheric' and 'aetheric-agent' commands"
           EOF
       
-      - name: Create installer archive
-        run: |
-          tar -czf installers.tar.gz installers/
-      
-      - name: Upload installer scripts
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: installers.tar.gz
-          asset_name: installers.tar.gz
-          asset_content_type: application/gzip
-
-  publish-release:
-    name: Publish Release
-    needs: [create-release, build-release, build-installers]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Get version from tag
-        id: tag_version
-        run: |
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      
-      - name: Update release notes
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { owner, repo } = context.repo;
-            const release_id = '${{ needs.create-release.outputs.release_id }}';
-            const version = '${{ steps.tag_version.outputs.version }}';
-            
-            const body = `## Installation
+          files: |
+            artifacts/**/*
+            installers/*
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          generate_release_notes: true
+          body: |
+            ## Installation
             
             ### Quick Install
             
             **Linux/macOS:**
-            \`\`\`bash
-            curl -fsSL https://github.com/${owner}/${repo}/releases/download/${version}/installers.tar.gz | tar -xz && sudo bash installers/install.sh ${version}
-            \`\`\`
+            ```bash
+            curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/install.sh | sudo bash -s ${{ steps.version.outputs.version }}
+            ```
             
             **Windows (PowerShell as Administrator):**
-            \`\`\`powershell
-            Invoke-WebRequest -Uri "https://github.com/${owner}/${repo}/releases/download/${version}/installers.tar.gz" -OutFile installers.tar.gz
-            tar -xzf installers.tar.gz
-            .\\installers\\install.ps1 -Version ${version}
-            \`\`\`
+            ```powershell
+            Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/install.ps1" -OutFile install.ps1
+            .\install.ps1 -Version ${{ steps.version.outputs.version }}
+            ```
             
             ### Manual Installation
             
@@ -430,34 +409,15 @@ jobs:
             - **Linux**: x86_64, aarch64 (ARM64), armv7, i686, musl
             - **Windows**: x86_64, aarch64 (ARM64)
             - **macOS**: x86_64 (Intel), aarch64 (Apple Silicon)
-            
-            ## What's Changed
-            
-            See the full changelog below.`;
-            
-            await github.rest.repos.updateRelease({
-              owner,
-              repo,
-              release_id,
-              body,
-              draft: false,
-            });
-
-  # Optional: Publish to crates.io
-  publish-crates:
-    name: Publish to crates.io
-    needs: publish-release
-    runs-on: ubuntu-latest
-    if: "!contains(github.ref, '-')"  # Don't publish pre-releases
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      
-      - name: Publish crates
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-        run: |
-          # Publish in dependency order if you have multiple crates
-          # cargo publish -p aetheric-core --token $CARGO_REGISTRY_TOKEN
-          # cargo publish -p aetheric-edge --token $CARGO_REGISTRY_TOKEN
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Success gate
+  success:
+    name: All Builds Successful
+    if: success()
+    needs: [checks, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark success
+        run: echo "All builds completed successfully!"
