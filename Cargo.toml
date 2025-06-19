@@ -1,0 +1,75 @@
+[package]
+name = "aetheric-edge"
+version = "0.1.0"
+edition = "2021"
+description = "A simplified edge computing agent inspired by thin-edge.io"
+license = "MIT OR Apache-2.0"
+authors = ["Ramhari Gyawali <ramhari.gyawali@outlook.com>"]
+
+[[bin]]
+name = "aetheric-agent"
+path = "src/agent_main.rs"
+
+[[bin]]
+name = "aetheric"
+path = "src/cli_main.rs"
+
+[dependencies]
+# MQTT client
+rumqttc = "0.24"
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# Configuration
+toml = "0.8"
+# CLI
+clap = { version = "4.0", features = ["derive"] }
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+# UUID for message IDs
+uuid = { version = "1.0", features = ["v4", "serde"] }
+# System utilities (Unix-only)
+nix = { version = "0.27", target_family = "unix" }
+# Cross-platform system information
+sysinfo = "0.30"
+# Process management
+tokio-util = "0.7"
+# HTTP client for downloads
+reqwest = { version = "0.11", features = ["json", "stream"] }
+# File operations
+tempfile = "3.0"
+# Docker API (for container management)
+bollard = "0.15"
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+# Directory operations
+dirs = "5.0"
+# Hashing for checksums
+md5 = "0.7"
+sha1 = "0.10"
+sha2 = "0.10"
+# Certificate generation and management
+rcgen = "0.12"
+rustls-pemfile = "2.0"
+# Base64 encoding/decoding
+base64 = "0.22"
+# Random number generation
+rand = "0.8"
+# X.509 certificate parsing
+x509-parser = "0.16"
+
+# Windows-specific dependencies
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.6"
+winapi = { version = "0.3", features = ["winuser", "winsvc", "advapi32"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.0"
+rand = "0.8"
