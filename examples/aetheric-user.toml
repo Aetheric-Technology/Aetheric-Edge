@@ -1,0 +1,38 @@
+[gateway]
+id = "aetheric-edge-001"
+name = "Aetheric Edge Device"
+location = "Building A, Floor 2"
+description = "Production edge device for monitoring and control"
+
+[mqtt]
+host = "mqtt.example.com"
+port = 1883
+username = "edge-device"
+password = "your-password-here"
+tls = false
+# For TLS connections, provide certificate paths:
+# ca_cert_path = "~/.aetheric/certs/ca.pem"
+# client_cert_path = "~/.aetheric/certs/client.pem"
+# client_key_path = "~/.aetheric/certs/client.key"
+
+[certificates]
+cert_dir = "~/.aetheric/certs"
+auto_renew = true
+renew_days_threshold = 30
+
+[health]
+report_interval_seconds = 30
+metrics_enabled = true
+
+[plugins]
+# User-accessible plugin directory (no sudo required)
+install_dir = "~/.aetheric/plugins"
+temp_dir = "~/.aetheric/tmp"
+docker_enabled = true
+max_concurrent_installs = 2
+
+[ssh]
+enabled = true
+port = 22
+max_sessions = 5
+session_timeout_minutes = 60

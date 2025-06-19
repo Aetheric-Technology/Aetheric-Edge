@@ -1,0 +1,42 @@
+# Production deployment configuration for Aetheric Edge
+# This is a SPECIAL CASE configuration for system-wide deployment
+# Most users should use ~/.aetheric/plugins (see aetheric.toml)
+
+[gateway]
+id = "aetheric-edge-prod-001"
+name = "Aetheric Edge Production Device"
+location = "Data Center, Rack 12"
+description = "Production edge device deployed as system service"
+
+[mqtt]
+host = "mqtt.production.com"
+port = 8883
+username = "edge-device-prod"
+password = "secure-production-password"
+tls = true
+ca_cert_path = "/etc/ssl/certs/ca.pem"
+client_cert_path = "/etc/ssl/certs/client.pem"
+client_key_path = "/etc/ssl/private/client.key"
+
+[certificates]
+cert_dir = "/etc/aetheric-edge/certs"
+auto_renew = true
+renew_days_threshold = 30
+
+[health]
+report_interval_seconds = 30
+metrics_enabled = true
+
+[plugins]
+# SPECIAL CASE: System-wide installation (requires sudo/root)
+# Only use this when deploying as a system service without user home
+install_dir = "/opt/aetheric-edge/plugins"
+temp_dir = "/tmp/aetheric-edge"
+docker_enabled = true
+max_concurrent_installs = 2
+
+[ssh]
+enabled = true
+port = 22
+max_sessions = 10
+session_timeout_minutes = 120
