@@ -82,27 +82,27 @@ jobs:
             target: i686-unknown-linux-gnu
             use_cross: true
           
-          # Windows targets
-          - name: Windows-x86_64
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            use_cross: false
+          # Windows targets (disabled for now - will enable later)
+          # - name: Windows-x86_64
+          #   os: windows-latest
+          #   target: x86_64-pc-windows-msvc
+          #   use_cross: false
+          # 
+          # - name: Windows-aarch64
+          #   os: windows-latest
+          #   target: aarch64-pc-windows-msvc
+          #   use_cross: false
           
-          - name: Windows-aarch64
-            os: windows-latest
-            target: aarch64-pc-windows-msvc
-            use_cross: false
-          
-          # macOS targets
-          - name: macOS-x86_64
-            os: macos-latest
-            target: x86_64-apple-darwin
-            use_cross: false
-          
-          - name: macOS-aarch64
-            os: macos-latest
-            target: aarch64-apple-darwin
-            use_cross: false
+          # macOS targets (disabled for now - will enable later)
+          # - name: macOS-x86_64
+          #   os: macos-latest
+          #   target: x86_64-apple-darwin
+          #   use_cross: false
+          # 
+          # - name: macOS-aarch64
+          #   os: macos-latest
+          #   target: aarch64-apple-darwin
+          #   use_cross: false
 
     steps:
       - uses: actions/checkout@v4
@@ -392,15 +392,9 @@ jobs:
             
             ### Quick Install
             
-            **Linux/macOS:**
+            **Linux:**
             ```bash
             curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/install.sh | sudo bash -s ${{ steps.version.outputs.version }}
-            ```
-            
-            **Windows (PowerShell as Administrator):**
-            ```powershell
-            Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/install.ps1" -OutFile install.ps1
-            .\install.ps1 -Version ${{ steps.version.outputs.version }}
             ```
             
             ### Manual Installation
@@ -410,8 +404,8 @@ jobs:
             ### Supported Platforms
             
             - **Linux**: x86_64, aarch64 (ARM64), armv7, i686, musl
-            - **Windows**: x86_64, aarch64 (ARM64)
-            - **macOS**: x86_64 (Intel), aarch64 (Apple Silicon)
+            
+            *Note: Windows and macOS builds are temporarily disabled and will be enabled in a future release.*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
