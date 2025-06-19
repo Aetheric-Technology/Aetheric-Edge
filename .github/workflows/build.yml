@@ -167,8 +167,9 @@ jobs:
           fi
           
           # Copy additional files
-          cp README.md LICENSE "$dirname/"
-          cp -r examples "$dirname/" || true
+          cp README.md "$dirname/"
+          cp LICENSE "$dirname/" || echo "LICENSE file not found, skipping"
+          cp -r examples "$dirname/" || echo "examples directory not found, skipping"
           
           # Create archive
           if [[ "${{ matrix.platform.os }}" == "windows-latest" ]]; then
