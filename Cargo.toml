@@ -15,8 +15,8 @@ name = "aetheric"
 path = "src/cli_main.rs"
 
 [dependencies]
-# MQTT client
-rumqttc = "0.24"
+# MQTT client with native TLS disabled for cross-compilation
+rumqttc = { version = "0.24", default-features = false, features = ["use-rustls"] }
 # Async runtime
 tokio = { version = "1.0", features = ["full"] }
 # Serialization
@@ -38,12 +38,12 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 sysinfo = "0.30"
 # Process management
 tokio-util = "0.7"
-# HTTP client for downloads
-reqwest = { version = "0.11", features = ["json", "stream"] }
+# HTTP client with rustls for cross-compilation compatibility
+reqwest = { version = "0.11", default-features = false, features = ["json", "stream", "rustls-tls"] }
 # File operations
 tempfile = "3.0"
-# Docker API (for container management)
-bollard = "0.15"
+# Docker API with SSL disabled for cross-compilation (optional feature)
+bollard = { version = "0.15", default-features = false }
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }
 # Directory operations
@@ -52,8 +52,8 @@ dirs = "5.0"
 md5 = "0.7"
 sha1 = "0.10"
 sha2 = "0.10"
-# Certificate generation and management
-rcgen = "0.12"
+# Certificate generation with default ring backend for cross-compilation
+rcgen = { version = "0.12", default-features = true }
 rustls-pemfile = "2.0"
 # Base64 encoding/decoding
 base64 = "0.22"
