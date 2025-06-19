@@ -131,6 +131,24 @@ impl SshTunnelManager {
     }
 
     pub async fn handle_ssh_command(&self, command: SshCommand) -> Result<SshResponse> {
+        // Check if SSH is enabled
+        if !self.config.ssh.enabled {
+            let session_id = match &command {
+                SshCommand::Connect { session_id, .. } => session_id.clone(),
+                SshCommand::Disconnect { session_id } => session_id.clone(),
+                SshCommand::Data { session_id, .. } => session_id.clone(),
+                SshCommand::Heartbeat { session_id } => session_id.clone(),
+            };
+            
+            return Ok(SshResponse {
+                session_id,
+                status: SshSessionStatus::Failed,
+                message: "SSH functionality is disabled".to_string(),
+                data: None,
+                local_port: None,
+            });
+        }
+
         match command {
             SshCommand::Connect {
                 session_id,
@@ -192,6 +210,52 @@ impl SshTunnelManager {
 
         let target_host = target_host.unwrap_or_else(|| "127.0.0.1".to_string());
         let target_port = target_port.unwrap_or(22);
+
+        // Validate port number
+        if target_port == 0 {
+            return Ok(SshResponse {
+                session_id: session_id.clone(),
+                status: SshSessionStatus::Failed,
+                message: "Invalid port: Port 0 is not allowed".to_string(),
+                data: None,
+                local_port: None,
+            });
+        }
+
+        // Validate session ID
+        if session_id.is_empty() {
+            return Ok(SshResponse {
+                session_id: session_id.clone(),
+                status: SshSessionStatus::Failed,
+                message: "Invalid session ID: Empty session ID is not allowed".to_string(),
+                data: None,
+                local_port: None,
+            });
+        }
+
+        // Validate target host
+        if target_host.trim().is_empty() {
+            return Ok(SshResponse {
+                session_id: session_id.clone(),
+                status: SshSessionStatus::Failed,
+                message: "Invalid target host: Empty host is not allowed".to_string(),
+                data: None,
+                local_port: None,
+            });
+        }
+
+        // Validate duration (if provided)
+        if let Some(duration) = duration_minutes {
+            if duration == 0 {
+                return Ok(SshResponse {
+                    session_id: session_id.clone(),
+                    status: SshSessionStatus::Failed,
+                    message: "Invalid duration: Duration must be greater than 0".to_string(),
+                    data: None,
+                    local_port: None,
+                });
+            }
+        }
 
         // Create the SSH tunnel
         match self

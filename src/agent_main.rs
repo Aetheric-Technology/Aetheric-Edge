@@ -5,6 +5,9 @@ use tokio::sync::mpsc;
 use tracing::{error, info};
 use tracing_subscriber;
 
+#[cfg(windows)]
+use tokio::signal;
+
 mod agent;
 mod certs;
 mod config;
