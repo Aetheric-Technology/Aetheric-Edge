@@ -4,7 +4,7 @@ use crate::mqtt::{messages::*, MqttClient};
 use anyhow::Result;
 use std::sync::Arc;
 use std::time::SystemTime;
-use sysinfo::{System, SystemExt, CpuExt};
+use sysinfo::System;
 use tokio::time::{interval, Duration};
 use tracing::{debug, error, info, warn};
 

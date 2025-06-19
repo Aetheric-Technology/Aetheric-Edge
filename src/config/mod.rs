@@ -65,7 +65,7 @@ pub struct SshConfig {
 impl Default for AethericConfig {
     fn default() -> Self {
         // Default to user home directory - no sudo required!
-        let (aetheric_dir, cert_dir, plugins_dir, temp_dir) = if let Some(home) = dirs::home_dir() {
+        let (_aetheric_dir, cert_dir, plugins_dir, temp_dir) = if let Some(home) = dirs::home_dir() {
             let aetheric_home = home.join(".aetheric");
             (
                 aetheric_home.clone(),

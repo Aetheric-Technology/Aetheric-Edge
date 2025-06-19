@@ -9,7 +9,7 @@ use tracing::{debug, info, warn};
 use std::os::unix::fs::PermissionsExt;
 
 /// Set secure file permissions in a cross-platform way
-async fn set_secure_file_permissions(path: &std::path::Path, is_private_key: bool) -> Result<()> {
+fn set_secure_file_permissions(path: &std::path::Path, is_private_key: bool) -> Result<()> {
     #[cfg(unix)]
     {
         use std::fs;
@@ -251,7 +251,7 @@ impl CertificateManager {
         fs::write(&temp_path, csr_pem)
             .context("Failed to write temporary CSR file")?;
         
-        set_secure_file_permissions(&temp_path, false).await
+        set_secure_file_permissions(&temp_path, false)
             .context("Failed to set permissions on CSR")?;
         
         fs::rename(&temp_path, &csr_path)
@@ -491,7 +491,7 @@ impl CertificateManager {
             .context("Failed to write temporary private key file")?;
         
         // Set restrictive permissions (owner read/write only)
-        set_secure_file_permissions(&temp_path, true).await
+        set_secure_file_permissions(&temp_path, true)
             .context("Failed to set secure permissions on private key")?;
         
         // Atomic move to final location
@@ -513,7 +513,7 @@ impl CertificateManager {
             .context("Failed to write temporary certificate file")?;
         
         // Set appropriate permissions (owner read/write, group/others read)
-        set_secure_file_permissions(&temp_path, false).await
+        set_secure_file_permissions(&temp_path, false)
             .context("Failed to set permissions on certificate")?;
         
         // Atomic move to final location
