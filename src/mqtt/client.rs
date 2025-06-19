@@ -40,7 +40,7 @@ impl MqttClient {
     pub async fn subscribe_to_commands(&self) -> Result<()> {
         let commands_topic = self.topic_builder.commands();
         info!("Subscribing to commands topic: {}", commands_topic);
-        
+
         self.client
             .subscribe(&commands_topic, QoS::AtLeastOnce)
             .await
@@ -51,8 +51,7 @@ impl MqttClient {
 
     pub async fn publish_health(&self, health: &HealthMessage) -> Result<()> {
         let topic = self.topic_builder.health();
-        let payload = serde_json::to_vec(health)
-            .context("Failed to serialize health message")?;
+        let payload = serde_json::to_vec(health).context("Failed to serialize health message")?;
 
         debug!("Publishing health status to topic: {}", topic);
         self.client
@@ -65,8 +64,8 @@ impl MqttClient {
 
     pub async fn publish_command_response(&self, response: &CommandResponse) -> Result<()> {
         let topic = self.topic_builder.command_response(&response.command_id);
-        let payload = serde_json::to_vec(response)
-            .context("Failed to serialize command response")?;
+        let payload =
+            serde_json::to_vec(response).context("Failed to serialize command response")?;
 
         debug!("Publishing command response to topic: {}", topic);
         self.client
@@ -79,8 +78,7 @@ impl MqttClient {
 
     pub async fn publish_event(&self, event: &EventMessage) -> Result<()> {
         let topic = self.topic_builder.events();
-        let payload = serde_json::to_vec(event)
-            .context("Failed to serialize event message")?;
+        let payload = serde_json::to_vec(event).context("Failed to serialize event message")?;
 
         debug!("Publishing event to topic: {}", topic);
         self.client
@@ -93,8 +91,8 @@ impl MqttClient {
 
     pub async fn publish_telemetry(&self, telemetry: &TelemetryMessage) -> Result<()> {
         let topic = self.topic_builder.telemetry();
-        let payload = serde_json::to_vec(telemetry)
-            .context("Failed to serialize telemetry message")?;
+        let payload =
+            serde_json::to_vec(telemetry).context("Failed to serialize telemetry message")?;
 
         debug!("Publishing telemetry to topic: {}", topic);
         self.client
@@ -107,8 +105,7 @@ impl MqttClient {
 
     pub async fn publish_ota_status(&self, status: &OtaStatus) -> Result<()> {
         let topic = self.topic_builder.ota_status();
-        let payload = serde_json::to_vec(status)
-            .context("Failed to serialize OTA status")?;
+        let payload = serde_json::to_vec(status).context("Failed to serialize OTA status")?;
 
         info!("Publishing OTA status to topic: {}", topic);
         self.client
@@ -144,7 +141,7 @@ impl MqttClient {
     async fn handle_publish(&self, publish: rumqttc::Publish) -> Result<()> {
         let topic = &publish.topic;
         let payload = &publish.payload;
-        
+
         debug!("Received message on topic: {}", topic);
 
         if let Some(_command_id) = parse_command_topic(topic, &self.topic_builder.gateway_id()) {
@@ -189,12 +186,9 @@ impl MqttClient {
     }
 }
 
-pub async fn run_mqtt_event_loop(
-    mut event_loop: EventLoop,
-    mqtt_client: MqttClient,
-) -> Result<()> {
+pub async fn run_mqtt_event_loop(mut event_loop: EventLoop, mqtt_client: MqttClient) -> Result<()> {
     info!("Starting MQTT event loop");
-    
+
     loop {
         match event_loop.poll().await {
             Ok(event) => {

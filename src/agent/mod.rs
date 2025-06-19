@@ -12,8 +12,7 @@ pub mod ssh_tunnel;
 
 pub use command_handler::CommandHandler;
 pub use health_monitor::HealthMonitor;
-pub use plugin_manager::PluginManager;
-pub use ssh_tunnel::{SshTunnelManager, SshCommand, SshResponse};
+pub use ssh_tunnel::SshTunnelManager;
 
 pub struct Agent {
     #[allow(dead_code)]
@@ -80,8 +79,7 @@ impl Agent {
         });
 
         // Wait for tasks to complete
-        tokio::try_join!(health_handle, command_loop_handle)
-            .context("Agent task failed")?;
+        tokio::try_join!(health_handle, command_loop_handle).context("Agent task failed")?;
 
         Ok(())
     }
@@ -96,7 +94,11 @@ impl Agent {
             "Command received and queued for processing".to_string(),
         );
 
-        if let Err(e) = self.mqtt_client.publish_command_response(&ack_response).await {
+        if let Err(e) = self
+            .mqtt_client
+            .publish_command_response(&ack_response)
+            .await
+        {
             error!("Failed to send command acknowledgment: {}", e);
         }
 

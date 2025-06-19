@@ -25,7 +25,10 @@ impl TopicBuilder {
     }
 
     pub fn command_response(&self, command_id: &str) -> String {
-        format!("{}/{}/cmd/{}/response", self.prefix, self.gateway_id, command_id)
+        format!(
+            "{}/{}/cmd/{}/response",
+            self.prefix, self.gateway_id, command_id
+        )
     }
 
     pub fn telemetry(&self) -> String {

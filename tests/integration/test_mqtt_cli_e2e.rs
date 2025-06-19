@@ -1,9 +1,8 @@
 use anyhow::Result;
-use std::process::Command;
-use std::path::PathBuf;
-use tempfile::TempDir;
-use tokio::time::{sleep, Duration};
 use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
+use tempfile::TempDir;
 
 /// End-to-end tests for the MQTT CLI functionality
 /// These tests execute the actual CLI binary to ensure everything works correctly
@@ -20,7 +19,7 @@ fn get_cli_binary_path() -> PathBuf {
 fn create_test_config_file() -> Result<(TempDir, PathBuf)> {
     let temp_dir = TempDir::new()?;
     let config_path = temp_dir.path().join("aetheric.toml");
-    
+
     let config_content = r#"
 [gateway]
 id = "test-gateway-e2e"
@@ -64,7 +63,11 @@ mod tests {
     #[test]
     fn test_cli_binary_exists() {
         let binary_path = get_cli_binary_path();
-        assert!(binary_path.exists(), "CLI binary not found at: {:?}", binary_path);
+        assert!(
+            binary_path.exists(),
+            "CLI binary not found at: {:?}",
+            binary_path
+        );
     }
 
     #[test]
@@ -140,7 +143,9 @@ mod tests {
 
         assert!(!output.status.success());
         let stderr = String::from_utf8(output.stderr).unwrap();
-        assert!(stderr.contains("required") || stderr.contains("TOPIC") || stderr.contains("MESSAGE"));
+        assert!(
+            stderr.contains("required") || stderr.contains("TOPIC") || stderr.contains("MESSAGE")
+        );
     }
 
     #[test]
@@ -158,14 +163,17 @@ mod tests {
     #[test]
     fn test_mqtt_pub_invalid_qos() {
         let (_temp_dir, config_path) = create_test_config_file().unwrap();
-        
+
         let output = Command::new(get_cli_binary_path())
             .args(&[
-                "mqtt", "pub", 
-                "--config", config_path.to_str().unwrap(),
-                "--qos", "5",
-                "test/topic", 
-                "test message"
+                "mqtt",
+                "pub",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--qos",
+                "5",
+                "test/topic",
+                "test message",
             ])
             .output()
             .expect("Failed to execute CLI");
@@ -178,16 +186,19 @@ mod tests {
     #[test]
     fn test_mqtt_pub_with_valid_config() {
         let (_temp_dir, config_path) = create_test_config_file().unwrap();
-        
+
         // This should fail to connect but succeed in parsing arguments
         let output = Command::new(get_cli_binary_path())
             .args(&[
-                "mqtt", "pub",
-                "--config", config_path.to_str().unwrap(),
-                "--qos", "1",
+                "mqtt",
+                "pub",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--qos",
+                "1",
                 "--retain",
                 "aetheric/test",
-                r#"{"message": "test"}"#
+                r#"{"message": "test"}"#,
             ])
             .output()
             .expect("Failed to execute CLI");
@@ -197,10 +208,10 @@ mod tests {
         if !output.status.success() {
             // Expect connection error, not argument parsing error
             assert!(
-                stderr.contains("Connection refused") || 
-                stderr.contains("I/O") ||
-                stderr.contains("MQTT error") ||
-                stderr.contains("Failed to load configuration")
+                stderr.contains("Connection refused")
+                    || stderr.contains("I/O")
+                    || stderr.contains("MQTT error")
+                    || stderr.contains("Failed to load configuration")
             );
         }
     }
@@ -208,15 +219,17 @@ mod tests {
     #[test]
     fn test_mqtt_pub_with_json_message() {
         let (_temp_dir, config_path) = create_test_config_file().unwrap();
-        
+
         let json_message = r#"{"temperature": 23.5, "humidity": 60, "sensor_id": "temp-001"}"#;
-        
+
         let output = Command::new(get_cli_binary_path())
             .args(&[
-                "mqtt", "pub",
-                "--config", config_path.to_str().unwrap(),
+                "mqtt",
+                "pub",
+                "--config",
+                config_path.to_str().unwrap(),
                 "sensor/temperature",
-                json_message
+                json_message,
             ])
             .output()
             .expect("Failed to execute CLI");
@@ -225,10 +238,10 @@ mod tests {
         let stderr = String::from_utf8(output.stderr).unwrap();
         if !output.status.success() {
             assert!(
-                stderr.contains("Connection refused") || 
-                stderr.contains("I/O") ||
-                stderr.contains("MQTT error") ||
-                stderr.contains("Failed to load configuration")
+                stderr.contains("Connection refused")
+                    || stderr.contains("I/O")
+                    || stderr.contains("MQTT error")
+                    || stderr.contains("Failed to load configuration")
             );
             // Should NOT contain JSON parsing errors
             assert!(!stderr.contains("JSON") || !stderr.contains("parse"));
@@ -238,15 +251,19 @@ mod tests {
     #[test]
     fn test_mqtt_pub_with_host_override() {
         let (_temp_dir, config_path) = create_test_config_file().unwrap();
-        
+
         let output = Command::new(get_cli_binary_path())
             .args(&[
-                "mqtt", "pub",
-                "--config", config_path.to_str().unwrap(),
-                "--host", "test.mosquitto.org",
-                "--port", "1883",
+                "mqtt",
+                "pub",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--host",
+                "test.mosquitto.org",
+                "--port",
+                "1883",
                 "test/aetheric",
-                "test message"
+                "test message",
             ])
             .output()
             .expect("Failed to execute CLI");
@@ -256,27 +273,30 @@ mod tests {
         if !output.status.success() {
             // Should be a connection error, not an argument error
             assert!(
-                stderr.contains("Connection") || 
-                stderr.contains("I/O") ||
-                stderr.contains("MQTT") ||
-                stderr.contains("timeout") ||
-                stderr.contains("Failed to load configuration")
+                stderr.contains("Connection")
+                    || stderr.contains("I/O")
+                    || stderr.contains("MQTT")
+                    || stderr.contains("timeout")
+                    || stderr.contains("Failed to load configuration")
             );
         }
     }
 
-    #[test] 
+    #[test]
     fn test_mqtt_pub_with_different_qos_levels() {
         let (_temp_dir, config_path) = create_test_config_file().unwrap();
-        
+
         for qos in &["0", "1", "2"] {
             let output = Command::new(get_cli_binary_path())
                 .args(&[
-                    "mqtt", "pub",
-                    "--config", config_path.to_str().unwrap(),
-                    "--qos", qos,
+                    "mqtt",
+                    "pub",
+                    "--config",
+                    config_path.to_str().unwrap(),
+                    "--qos",
+                    qos,
                     "test/qos",
-                    "test message"
+                    "test message",
                 ])
                 .output()
                 .expect("Failed to execute CLI");
@@ -285,10 +305,10 @@ mod tests {
             let stderr = String::from_utf8(output.stderr).unwrap();
             if !output.status.success() {
                 assert!(
-                    stderr.contains("Connection") || 
-                    stderr.contains("I/O") ||
-                    stderr.contains("MQTT") ||
-                    stderr.contains("Failed to load configuration")
+                    stderr.contains("Connection")
+                        || stderr.contains("I/O")
+                        || stderr.contains("MQTT")
+                        || stderr.contains("Failed to load configuration")
                 );
                 // Should NOT contain QoS validation errors
                 assert!(!stderr.contains("Invalid QoS"));
@@ -314,10 +334,12 @@ mod tests {
         // Then try to use it with MQTT
         let output = Command::new(get_cli_binary_path())
             .args(&[
-                "mqtt", "pub",
-                "--config", config_path.to_str().unwrap(),
+                "mqtt",
+                "pub",
+                "--config",
+                config_path.to_str().unwrap(),
                 "test/config",
-                "config test"
+                "config test",
             ])
             .output()
             .expect("Failed to execute CLI");
@@ -326,9 +348,7 @@ mod tests {
         let stderr = String::from_utf8(output.stderr).unwrap();
         if !output.status.success() {
             assert!(
-                stderr.contains("Connection") || 
-                stderr.contains("I/O") ||
-                stderr.contains("MQTT")
+                stderr.contains("Connection") || stderr.contains("I/O") || stderr.contains("MQTT")
             );
             // Should NOT contain config loading errors
             assert!(!stderr.contains("Failed to load configuration"));
@@ -338,13 +358,15 @@ mod tests {
     #[test]
     fn test_mqtt_pub_with_empty_message() {
         let (_temp_dir, config_path) = create_test_config_file().unwrap();
-        
+
         let output = Command::new(get_cli_binary_path())
             .args(&[
-                "mqtt", "pub",
-                "--config", config_path.to_str().unwrap(),
+                "mqtt",
+                "pub",
+                "--config",
+                config_path.to_str().unwrap(),
                 "test/empty",
-                ""
+                "",
             ])
             .output()
             .expect("Failed to execute CLI");
@@ -353,10 +375,10 @@ mod tests {
         let stderr = String::from_utf8(output.stderr).unwrap();
         if !output.status.success() {
             assert!(
-                stderr.contains("Connection") || 
-                stderr.contains("I/O") ||
-                stderr.contains("MQTT") ||
-                stderr.contains("Failed to load configuration")
+                stderr.contains("Connection")
+                    || stderr.contains("I/O")
+                    || stderr.contains("MQTT")
+                    || stderr.contains("Failed to load configuration")
             );
         }
     }
@@ -364,15 +386,17 @@ mod tests {
     #[test]
     fn test_mqtt_pub_with_special_characters() {
         let (_temp_dir, config_path) = create_test_config_file().unwrap();
-        
+
         let special_message = "Message with 特殊字符 and émojis 🚀 and \"quotes\"";
-        
+
         let output = Command::new(get_cli_binary_path())
             .args(&[
-                "mqtt", "pub",
-                "--config", config_path.to_str().unwrap(),
+                "mqtt",
+                "pub",
+                "--config",
+                config_path.to_str().unwrap(),
                 "test/special",
-                special_message
+                special_message,
             ])
             .output()
             .expect("Failed to execute CLI");
@@ -381,10 +405,10 @@ mod tests {
         let stderr = String::from_utf8(output.stderr).unwrap();
         if !output.status.success() {
             assert!(
-                stderr.contains("Connection") || 
-                stderr.contains("I/O") ||
-                stderr.contains("MQTT") ||
-                stderr.contains("Failed to load configuration")
+                stderr.contains("Connection")
+                    || stderr.contains("I/O")
+                    || stderr.contains("MQTT")
+                    || stderr.contains("Failed to load configuration")
             );
             // Should NOT contain encoding errors
             assert!(!stderr.contains("encoding") && !stderr.contains("UTF-8"));
@@ -394,11 +418,11 @@ mod tests {
     #[test]
     fn test_mqtt_topic_validation() {
         let (_temp_dir, config_path) = create_test_config_file().unwrap();
-        
+
         // Test various topic formats
         let topics = vec![
             "simple",
-            "path/to/topic", 
+            "path/to/topic",
             "device/sensor-001/temperature",
             "aetheric/measurements",
             "+/wildcard",
@@ -408,10 +432,12 @@ mod tests {
         for topic in topics {
             let output = Command::new(get_cli_binary_path())
                 .args(&[
-                    "mqtt", "pub",
-                    "--config", config_path.to_str().unwrap(),
+                    "mqtt",
+                    "pub",
+                    "--config",
+                    config_path.to_str().unwrap(),
                     topic,
-                    "test"
+                    "test",
                 ])
                 .output()
                 .expect("Failed to execute CLI");
@@ -420,10 +446,10 @@ mod tests {
             let stderr = String::from_utf8(output.stderr).unwrap();
             if !output.status.success() {
                 assert!(
-                    stderr.contains("Connection") || 
-                    stderr.contains("I/O") ||
-                    stderr.contains("MQTT") ||
-                    stderr.contains("Failed to load configuration")
+                    stderr.contains("Connection")
+                        || stderr.contains("I/O")
+                        || stderr.contains("MQTT")
+                        || stderr.contains("Failed to load configuration")
                 );
                 // Should NOT contain topic validation errors
                 assert!(!stderr.contains("Invalid topic"));

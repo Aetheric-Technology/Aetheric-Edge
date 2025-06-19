@@ -97,23 +97,23 @@ pub enum CommandType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PluginSource {
-    Url { 
-        url: String, 
+    Url {
+        url: String,
         checksum: Option<String>,
         checksum_type: Option<String>, // md5, sha256, etc.
     },
-    Base64 { 
-        data: String, 
+    Base64 {
+        data: String,
         checksum: Option<String>,
         checksum_type: Option<String>,
     },
-    AptPackage { 
-        package: String, 
+    AptPackage {
+        package: String,
         version: Option<String>,
         repository: Option<String>,
     },
-    Docker { 
-        image: String, 
+    Docker {
+        image: String,
         tag: Option<String>,
         registry: Option<String>,
     },
@@ -121,10 +121,12 @@ pub enum PluginSource {
         chunk_id: String,
         total_chunks: u32,
         chunk_index: u32,
-        data: String, // base64 encoded chunk
+        data: String,             // base64 encoded chunk
         checksum: Option<String>, // final file checksum
     },
-    Local { path: String },
+    Local {
+        path: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,9 +163,17 @@ pub enum SshDataDirection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum InstallSource {
-    Url { url: String, checksum: Option<String> },
-    Docker { image: String, tag: Option<String> },
-    Local { path: String },
+    Url {
+        url: String,
+        checksum: Option<String>,
+    },
+    Docker {
+        image: String,
+        tag: Option<String>,
+    },
+    Local {
+        path: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

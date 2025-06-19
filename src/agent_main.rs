@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use std::path::PathBuf;
-use tokio::signal;
 use tokio::sync::mpsc;
 use tracing::{error, info};
 use tracing_subscriber;
@@ -22,10 +21,10 @@ use mqtt::{run_mqtt_event_loop, MqttClient};
 struct Args {
     #[arg(short, long, help = "Path to configuration file")]
     config: Option<PathBuf>,
-    
+
     #[arg(short, long, help = "Enable verbose logging")]
     verbose: bool,
-    
+
     #[arg(long, help = "Generate default configuration file")]
     generate_config: bool,
 }
@@ -46,23 +45,29 @@ async fn main() -> Result<()> {
         .with_target(false)
         .init();
 
-    info!("Starting Aetheric Edge Agent v{}", env!("CARGO_PKG_VERSION"));
+    info!(
+        "Starting Aetheric Edge Agent v{}",
+        env!("CARGO_PKG_VERSION")
+    );
 
     // Determine config file path
-    let config_path = args.config.unwrap_or_else(|| AethericConfig::get_config_path());
+    let config_path = args
+        .config
+        .unwrap_or_else(|| AethericConfig::get_config_path());
 
     // Handle config generation
     if args.generate_config {
         let default_config = AethericConfig::default();
-        default_config.save_to_file(&config_path)
+        default_config
+            .save_to_file(&config_path)
             .context("Failed to generate default configuration")?;
         info!("Default configuration saved to: {:?}", config_path);
         return Ok(());
     }
 
     // Load configuration
-    let config = AethericConfig::load_from_file(&config_path)
-        .context("Failed to load configuration")?;
+    let config =
+        AethericConfig::load_from_file(&config_path).context("Failed to load configuration")?;
 
     info!("Configuration loaded from: {:?}", config_path);
     info!("Gateway ID: {}", config.gateway.id);
@@ -120,10 +125,10 @@ async fn wait_for_shutdown_signal() -> Result<()> {
     #[cfg(unix)]
     {
         use tokio::signal::unix::{signal, SignalKind};
-        
+
         let mut sigterm = signal(SignalKind::terminate())?;
         let mut sigint = signal(SignalKind::interrupt())?;
-        
+
         tokio::select! {
             _ = sigterm.recv() => {
                 info!("Received SIGTERM");
@@ -133,12 +138,12 @@ async fn wait_for_shutdown_signal() -> Result<()> {
             }
         }
     }
-    
+
     #[cfg(windows)]
     {
         signal::ctrl_c().await?;
         info!("Received Ctrl+C");
     }
-    
+
     Ok(())
 }

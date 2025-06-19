@@ -1,5 +1,7 @@
-use crate::agent::plugin_manager::{PluginManager, PluginSource as PMPluginSource, PluginConfig as PMPluginConfig};
-use crate::agent::ssh_tunnel::{SshTunnelManager, SshCommand};
+use crate::agent::plugin_manager::{
+    PluginConfig as PMPluginConfig, PluginManager, PluginSource as PMPluginSource,
+};
+use crate::agent::ssh_tunnel::{SshCommand, SshTunnelManager};
 use crate::config::AethericConfig;
 use crate::mqtt::messages::*;
 use anyhow::Result;
@@ -21,7 +23,11 @@ pub struct CommandHandler {
 impl CommandHandler {
     pub fn new(config: Arc<AethericConfig>, ssh_tunnel_manager: Arc<SshTunnelManager>) -> Self {
         let plugin_manager = PluginManager::new(config.clone());
-        Self { config, plugin_manager, ssh_tunnel_manager }
+        Self {
+            config,
+            plugin_manager,
+            ssh_tunnel_manager,
+        }
     }
 
     pub async fn handle_command(&self, command: CommandMessage) -> CommandResponse {
@@ -29,13 +35,23 @@ impl CommandHandler {
 
         let result = match &command.command {
             CommandType::Health => self.handle_health_command().await,
-            
+
             // Plugin management commands
-            CommandType::Install { plugin_name, source, config } => {
-                self.handle_plugin_install_command(plugin_name, source, config.as_ref()).await
+            CommandType::Install {
+                plugin_name,
+                source,
+                config,
+            } => {
+                self.handle_plugin_install_command(plugin_name, source, config.as_ref())
+                    .await
             }
-            CommandType::Update { plugin_name, source, config } => {
-                self.handle_plugin_update_command(plugin_name, source, config.as_ref()).await
+            CommandType::Update {
+                plugin_name,
+                source,
+                config,
+            } => {
+                self.handle_plugin_update_command(plugin_name, source, config.as_ref())
+                    .await
             }
             CommandType::Remove { plugin_name } => {
                 self.handle_plugin_remove_command(plugin_name).await
@@ -43,31 +59,49 @@ impl CommandHandler {
             CommandType::Start { plugin_name } => {
                 self.handle_plugin_start_command(plugin_name).await
             }
-            CommandType::Stop { plugin_name } => {
-                self.handle_plugin_stop_command(plugin_name).await
-            }
+            CommandType::Stop { plugin_name } => self.handle_plugin_stop_command(plugin_name).await,
             CommandType::Restart { plugin_name } => {
                 self.handle_plugin_restart_command(plugin_name).await
             }
             CommandType::Status { plugin_name } => {
-                self.handle_plugin_status_command(plugin_name.as_deref()).await
+                self.handle_plugin_status_command(plugin_name.as_deref())
+                    .await
             }
-            CommandType::List => {
-                self.handle_plugin_list_command().await
-            }
-            
+            CommandType::List => self.handle_plugin_list_command().await,
+
             // System management commands
-            CommandType::OtaUpdate { version, url, checksum } => {
-                self.handle_ota_update_command(version, url, checksum.as_deref()).await
+            CommandType::OtaUpdate {
+                version,
+                url,
+                checksum,
+            } => {
+                self.handle_ota_update_command(version, url, checksum.as_deref())
+                    .await
             }
-            CommandType::SshConnect { session_id, target_host, target_port, duration_minutes } => {
-                self.handle_ssh_connect_command(session_id, target_host.clone(), *target_port, *duration_minutes).await
+            CommandType::SshConnect {
+                session_id,
+                target_host,
+                target_port,
+                duration_minutes,
+            } => {
+                self.handle_ssh_connect_command(
+                    session_id,
+                    target_host.clone(),
+                    *target_port,
+                    *duration_minutes,
+                )
+                .await
             }
             CommandType::SshDisconnect { session_id } => {
                 self.handle_ssh_disconnect_command(session_id).await
             }
-            CommandType::SshData { session_id, data, direction } => {
-                self.handle_ssh_data_command(session_id, data, direction.clone()).await
+            CommandType::SshData {
+                session_id,
+                data,
+                direction,
+            } => {
+                self.handle_ssh_data_command(session_id, data, direction.clone())
+                    .await
             }
             CommandType::SshHeartbeat { session_id } => {
                 self.handle_ssh_heartbeat_command(session_id).await
@@ -78,8 +112,17 @@ impl CommandHandler {
             CommandType::DisablePlugin { plugin_name } => {
                 self.handle_disable_plugin_command(plugin_name).await
             }
-            CommandType::SetPluginMaintenance { plugin_name, maintenance_mode, reason } => {
-                self.handle_set_plugin_maintenance_command(plugin_name, *maintenance_mode, reason.clone()).await
+            CommandType::SetPluginMaintenance {
+                plugin_name,
+                maintenance_mode,
+                reason,
+            } => {
+                self.handle_set_plugin_maintenance_command(
+                    plugin_name,
+                    *maintenance_mode,
+                    reason.clone(),
+                )
+                .await
             }
             CommandType::SystemRestart => self.handle_system_restart_command().await,
         };
@@ -89,7 +132,8 @@ impl CommandHandler {
                 command.id,
                 CommandStatus::Success,
                 "Command executed successfully".to_string(),
-            ).with_result(result),
+            )
+            .with_result(result),
             Err(e) => CommandResponse::new(
                 command.id,
                 CommandStatus::Failed,
@@ -100,7 +144,7 @@ impl CommandHandler {
 
     async fn handle_health_command(&self) -> Result<serde_json::Value> {
         info!("Processing health command");
-        
+
         let health_data = serde_json::json!({
             "gateway_id": self.config.gateway.id,
             "uptime": self.get_uptime().await,
@@ -123,14 +167,14 @@ impl CommandHandler {
 
         match source {
             InstallSource::Url { url, checksum } => {
-                self.install_from_url(plugin_name, url, checksum.as_deref()).await
+                self.install_from_url(plugin_name, url, checksum.as_deref())
+                    .await
             }
             InstallSource::Docker { image, tag } => {
-                self.install_docker_container(plugin_name, image, tag.as_deref()).await
+                self.install_docker_container(plugin_name, image, tag.as_deref())
+                    .await
             }
-            InstallSource::Local { path } => {
-                self.install_from_local_path(plugin_name, path).await
-            }
+            InstallSource::Local { path } => self.install_from_local_path(plugin_name, path).await,
         }
     }
 
@@ -139,7 +183,7 @@ impl CommandHandler {
         info!("Removing plugin: {}", plugin_name);
 
         let plugin_path = self.config.plugins.install_dir.join(plugin_name);
-        
+
         if plugin_path.exists() {
             fs::remove_dir_all(&plugin_path).await?;
             info!("Plugin {} removed successfully", plugin_name);
@@ -177,7 +221,7 @@ impl CommandHandler {
         // Save the update package to temp directory
         let temp_path = self.config.plugins.temp_dir.join("ota_update.bin");
         fs::create_dir_all(&self.config.plugins.temp_dir).await?;
-        
+
         let mut file = fs::File::create(&temp_path).await?;
         file.write_all(&content).await?;
         file.sync_all().await?;
@@ -211,8 +255,11 @@ impl CommandHandler {
             duration_minutes,
         };
 
-        let response = self.ssh_tunnel_manager.handle_ssh_command(ssh_command).await?;
-        
+        let response = self
+            .ssh_tunnel_manager
+            .handle_ssh_command(ssh_command)
+            .await?;
+
         Ok(serde_json::json!({
             "session_id": response.session_id,
             "status": response.status,
@@ -228,8 +275,11 @@ impl CommandHandler {
             session_id: session_id.to_string(),
         };
 
-        let response = self.ssh_tunnel_manager.handle_ssh_command(ssh_command).await?;
-        
+        let response = self
+            .ssh_tunnel_manager
+            .handle_ssh_command(ssh_command)
+            .await?;
+
         Ok(serde_json::json!({
             "session_id": response.session_id,
             "status": response.status,
@@ -256,8 +306,11 @@ impl CommandHandler {
             direction: ssh_direction,
         };
 
-        let response = self.ssh_tunnel_manager.handle_ssh_command(ssh_command).await?;
-        
+        let response = self
+            .ssh_tunnel_manager
+            .handle_ssh_command(ssh_command)
+            .await?;
+
         Ok(serde_json::json!({
             "session_id": response.session_id,
             "status": response.status,
@@ -272,8 +325,11 @@ impl CommandHandler {
             session_id: session_id.to_string(),
         };
 
-        let response = self.ssh_tunnel_manager.handle_ssh_command(ssh_command).await?;
-        
+        let response = self
+            .ssh_tunnel_manager
+            .handle_ssh_command(ssh_command)
+            .await?;
+
         Ok(serde_json::json!({
             "session_id": response.session_id,
             "status": response.status,
@@ -283,24 +339,32 @@ impl CommandHandler {
     }
 
     // New plugin management command handlers
-    
+
     async fn handle_plugin_install_command(
         &self,
         plugin_name: &str,
         source: &PluginSource,
         config: Option<&PluginConfig>,
     ) -> Result<serde_json::Value> {
-        info!("Installing plugin: {} from source: {:?}", plugin_name, source);
+        info!(
+            "Installing plugin: {} from source: {:?}",
+            plugin_name, source
+        );
 
         // Create default config if none provided
         let plugin_config = match config {
             Some(cfg) => cfg.clone(),
-            None => self.create_default_plugin_config(plugin_name, source).await?,
+            None => {
+                self.create_default_plugin_config(plugin_name, source)
+                    .await?
+            }
         };
 
         let pm_source = self.convert_plugin_source(source)?;
         let pm_config = self.convert_plugin_config(&plugin_config)?;
-        self.plugin_manager.install_plugin(plugin_name, &pm_source, pm_config).await
+        self.plugin_manager
+            .install_plugin(plugin_name, &pm_source, pm_config)
+            .await
     }
 
     async fn handle_plugin_update_command(
@@ -315,7 +379,9 @@ impl CommandHandler {
             Some(cfg) => Some(self.convert_plugin_config(cfg)?),
             None => None,
         };
-        self.plugin_manager.update_plugin(plugin_name, &pm_source, pm_config).await
+        self.plugin_manager
+            .update_plugin(plugin_name, &pm_source, pm_config)
+            .await
     }
 
     async fn handle_plugin_remove_command(&self, plugin_name: &str) -> Result<serde_json::Value> {
@@ -338,7 +404,10 @@ impl CommandHandler {
         self.plugin_manager.restart_plugin(plugin_name).await
     }
 
-    async fn handle_plugin_status_command(&self, plugin_name: Option<&str>) -> Result<serde_json::Value> {
+    async fn handle_plugin_status_command(
+        &self,
+        plugin_name: Option<&str>,
+    ) -> Result<serde_json::Value> {
         match plugin_name {
             Some(name) => {
                 info!("Getting status for plugin: {}", name);
@@ -395,43 +464,63 @@ impl CommandHandler {
 
     fn convert_plugin_source(&self, source: &PluginSource) -> Result<PMPluginSource> {
         let pm_source = match source {
-            PluginSource::Url { url, checksum, checksum_type } => PMPluginSource::Url {
+            PluginSource::Url {
+                url,
+                checksum,
+                checksum_type,
+            } => PMPluginSource::Url {
                 url: url.clone(),
                 checksum: checksum.clone(),
                 checksum_type: checksum_type.clone(),
             },
-            PluginSource::Base64 { data, checksum, checksum_type } => PMPluginSource::Base64 {
+            PluginSource::Base64 {
+                data,
+                checksum,
+                checksum_type,
+            } => PMPluginSource::Base64 {
                 data: data.clone(),
                 checksum: checksum.clone(),
                 checksum_type: checksum_type.clone(),
             },
-            PluginSource::AptPackage { package, version, repository } => PMPluginSource::AptPackage {
+            PluginSource::AptPackage {
+                package,
+                version,
+                repository,
+            } => PMPluginSource::AptPackage {
                 package: package.clone(),
                 version: version.clone(),
                 repository: repository.clone(),
             },
-            PluginSource::Docker { image, tag, registry } => PMPluginSource::Docker {
+            PluginSource::Docker {
+                image,
+                tag,
+                registry,
+            } => PMPluginSource::Docker {
                 image: image.clone(),
                 tag: tag.clone(),
                 registry: registry.clone(),
             },
-            PluginSource::Chunked { chunk_id, total_chunks, chunk_index, data, checksum } => PMPluginSource::Chunked {
+            PluginSource::Chunked {
+                chunk_id,
+                total_chunks,
+                chunk_index,
+                data,
+                checksum,
+            } => PMPluginSource::Chunked {
                 chunk_id: chunk_id.clone(),
                 total_chunks: *total_chunks,
                 chunk_index: *chunk_index,
                 data: data.clone(),
                 checksum: checksum.clone(),
             },
-            PluginSource::Local { path } => PMPluginSource::Local {
-                path: path.clone(),
-            },
+            PluginSource::Local { path } => PMPluginSource::Local { path: path.clone() },
         };
         Ok(pm_source)
     }
 
     fn convert_plugin_config(&self, config: &PluginConfig) -> Result<PMPluginConfig> {
         use crate::agent::plugin_manager::PluginType as PMPluginType;
-        
+
         let pm_plugin_type = match config.plugin_type {
             PluginType::Binary => PMPluginType::Binary,
             PluginType::Docker => PMPluginType::Docker,
@@ -480,9 +569,19 @@ impl CommandHandler {
         self.plugin_manager.disable_plugin(plugin_name).await
     }
 
-    async fn handle_set_plugin_maintenance_command(&self, plugin_name: &str, maintenance_mode: bool, reason: Option<String>) -> Result<serde_json::Value> {
-        info!("Setting maintenance mode for plugin {}: {}", plugin_name, maintenance_mode);
-        self.plugin_manager.set_plugin_maintenance(plugin_name, maintenance_mode, reason).await
+    async fn handle_set_plugin_maintenance_command(
+        &self,
+        plugin_name: &str,
+        maintenance_mode: bool,
+        reason: Option<String>,
+    ) -> Result<serde_json::Value> {
+        info!(
+            "Setting maintenance mode for plugin {}: {}",
+            plugin_name, maintenance_mode
+        );
+        self.plugin_manager
+            .set_plugin_maintenance(plugin_name, maintenance_mode, reason)
+            .await
     }
 
     #[allow(dead_code)]
@@ -563,7 +662,11 @@ impl CommandHandler {
         }
 
         // Create a container configuration
-        let config_path = self.config.plugins.install_dir.join(format!("{}.json", plugin_name));
+        let config_path = self
+            .config
+            .plugins
+            .install_dir
+            .join(format!("{}.json", plugin_name));
         let config = serde_json::json!({
             "plugin_name": plugin_name,
             "type": "docker",
@@ -572,7 +675,8 @@ impl CommandHandler {
         });
 
         let mut file = fs::File::create(&config_path).await?;
-        file.write_all(serde_json::to_string_pretty(&config)?.as_bytes()).await?;
+        file.write_all(serde_json::to_string_pretty(&config)?.as_bytes())
+            .await?;
 
         info!("Docker plugin {} installed successfully", plugin_name);
 
@@ -626,13 +730,12 @@ impl CommandHandler {
     async fn get_uptime(&self) -> u64 {
         // Simple uptime implementation - in a real system, you'd read from /proc/uptime
         match fs::read_to_string("/proc/uptime").await {
-            Ok(content) => {
-                content.split_whitespace()
-                    .next()
-                    .and_then(|s| s.parse::<f64>().ok())
-                    .map(|f| f as u64)
-                    .unwrap_or(0)
-            }
+            Ok(content) => content
+                .split_whitespace()
+                .next()
+                .and_then(|s| s.parse::<f64>().ok())
+                .map(|f| f as u64)
+                .unwrap_or(0),
             Err(_) => 0,
         }
     }
@@ -642,12 +745,14 @@ impl CommandHandler {
         match fs::read_to_string("/proc/meminfo").await {
             Ok(content) => {
                 let lines: Vec<&str> = content.lines().collect();
-                let total = lines.iter()
+                let total = lines
+                    .iter()
                     .find(|line| line.starts_with("MemTotal:"))
                     .and_then(|line| line.split_whitespace().nth(1))
                     .and_then(|s| s.parse::<u64>().ok())
                     .unwrap_or(0);
-                let available = lines.iter()
+                let available = lines
+                    .iter()
                     .find(|line| line.starts_with("MemAvailable:"))
                     .and_then(|line| line.split_whitespace().nth(1))
                     .and_then(|s| s.parse::<u64>().ok())

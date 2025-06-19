@@ -58,11 +58,13 @@ async fn create_test_setup(temp_dir: &TempDir) -> (CommandHandler, Arc<AethericC
         1883,
         "test-gateway".to_string(),
         command_sender,
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
     let mqtt_client_arc = Arc::new(mqtt_client);
     let ssh_tunnel_manager = Arc::new(SshTunnelManager::new(config.clone(), mqtt_client_arc));
     let command_handler = CommandHandler::new(config.clone(), ssh_tunnel_manager);
-    
+
     (command_handler, config)
 }
 
@@ -70,20 +72,20 @@ async fn create_test_setup(temp_dir: &TempDir) -> (CommandHandler, Arc<AethericC
 async fn test_health_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, _config) = create_test_setup(&temp_dir).await;
-    
+
     let command = CommandMessage {
         id: "health-cmd-001".to_string(),
         command: CommandType::Health,
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "health-cmd-001");
     assert!(matches!(response.status, CommandStatus::Success));
     assert!(response.result.is_some());
-    
+
     let result = response.result.unwrap();
     assert!(result["gateway_id"].as_str().unwrap() == "test-gateway");
     assert!(result.get("uptime").is_some());
@@ -97,15 +99,20 @@ async fn test_health_command() {
 async fn test_plugin_install_local_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, config) = create_test_setup(&temp_dir).await;
-    
+
     // Create a test binary file
     let test_binary_path = temp_dir.path().join("test_plugin");
-    tokio::fs::write(&test_binary_path, b"#!/bin/bash\necho 'Hello from plugin'\n").await.unwrap();
-    
+    tokio::fs::write(
+        &test_binary_path,
+        b"#!/bin/bash\necho 'Hello from plugin'\n",
+    )
+    .await
+    .unwrap();
+
     let source = PluginSource::Local {
         path: test_binary_path.to_string_lossy().to_string(),
     };
-    
+
     let plugin_config = PluginConfig {
         name: "test-local-plugin".to_string(),
         version: "1.0.0".to_string(),
@@ -118,7 +125,7 @@ async fn test_plugin_install_local_command() {
         volumes: Vec::new(),
         command_args: Vec::new(),
     };
-    
+
     let command = CommandMessage {
         id: "install-cmd-001".to_string(),
         command: CommandType::Install {
@@ -129,17 +136,17 @@ async fn test_plugin_install_local_command() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "install-cmd-001");
     assert!(matches!(response.status, CommandStatus::Success));
     assert!(response.result.is_some());
-    
+
     let result = response.result.unwrap();
     assert_eq!(result["plugin_name"], "test-local-plugin");
     assert_eq!(result["status"], "installed");
-    
+
     // Verify plugin was actually installed
     let plugin_dir = config.plugins.install_dir.join("test-local-plugin");
     assert!(plugin_dir.exists());
@@ -152,16 +159,17 @@ async fn test_plugin_install_local_command() {
 async fn test_plugin_install_base64_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, config) = create_test_setup(&temp_dir).await;
-    
+
     let script_content = b"#!/bin/bash\necho 'Hello from base64 plugin'\n";
-    let base64_data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, script_content);
-    
+    let base64_data =
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, script_content);
+
     let source = PluginSource::Base64 {
         data: base64_data,
         checksum: None,
         checksum_type: None,
     };
-    
+
     let plugin_config = PluginConfig {
         name: "test-base64-plugin".to_string(),
         version: "1.0.0".to_string(),
@@ -174,7 +182,7 @@ async fn test_plugin_install_base64_command() {
         volumes: Vec::new(),
         command_args: Vec::new(),
     };
-    
+
     let command = CommandMessage {
         id: "install-cmd-002".to_string(),
         command: CommandType::Install {
@@ -185,12 +193,12 @@ async fn test_plugin_install_base64_command() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "install-cmd-002");
     assert!(matches!(response.status, CommandStatus::Success));
-    
+
     // Verify plugin was installed
     let plugin_dir = config.plugins.install_dir.join("test-base64-plugin");
     assert!(plugin_dir.exists());
@@ -204,15 +212,17 @@ async fn test_plugin_install_base64_command() {
 async fn test_plugin_remove_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, config) = create_test_setup(&temp_dir).await;
-    
+
     // First install a plugin
     let test_binary_path = temp_dir.path().join("test_plugin_remove");
-    tokio::fs::write(&test_binary_path, b"#!/bin/bash\necho 'Test'\n").await.unwrap();
-    
+    tokio::fs::write(&test_binary_path, b"#!/bin/bash\necho 'Test'\n")
+        .await
+        .unwrap();
+
     let install_source = PluginSource::Local {
         path: test_binary_path.to_string_lossy().to_string(),
     };
-    
+
     let plugin_config = PluginConfig {
         name: "test-remove-plugin".to_string(),
         version: "1.0.0".to_string(),
@@ -225,7 +235,7 @@ async fn test_plugin_remove_command() {
         volumes: Vec::new(),
         command_args: Vec::new(),
     };
-    
+
     let install_command = CommandMessage {
         id: "install-cmd-003".to_string(),
         command: CommandType::Install {
@@ -236,10 +246,10 @@ async fn test_plugin_remove_command() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let install_response = command_handler.handle_command(install_command).await;
     assert!(matches!(install_response.status, CommandStatus::Success));
-    
+
     // Now remove the plugin
     let remove_command = CommandMessage {
         id: "remove-cmd-001".to_string(),
@@ -249,16 +259,16 @@ async fn test_plugin_remove_command() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(remove_command).await;
-    
+
     assert_eq!(response.command_id, "remove-cmd-001");
     assert!(matches!(response.status, CommandStatus::Success));
-    
+
     let result = response.result.unwrap();
     assert_eq!(result["plugin_name"], "test-remove-plugin");
     assert_eq!(result["status"], "removed");
-    
+
     // Verify plugin directory was removed
     let plugin_dir = config.plugins.install_dir.join("test-remove-plugin");
     assert!(!plugin_dir.exists());
@@ -268,20 +278,20 @@ async fn test_plugin_remove_command() {
 async fn test_plugin_list_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, _config) = create_test_setup(&temp_dir).await;
-    
+
     let command = CommandMessage {
         id: "list-cmd-001".to_string(),
         command: CommandType::List,
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "list-cmd-001");
     assert!(matches!(response.status, CommandStatus::Success));
     assert!(response.result.is_some());
-    
+
     let result = response.result.unwrap();
     assert!(result.get("plugins").is_some());
     let plugins = result["plugins"].as_array().unwrap();
@@ -293,7 +303,7 @@ async fn test_plugin_list_command() {
 async fn test_plugin_start_stop_restart_commands() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, _config) = create_test_setup(&temp_dir).await;
-    
+
     // Test start command for non-existent plugin
     let start_command = CommandMessage {
         id: "start-cmd-001".to_string(),
@@ -303,10 +313,10 @@ async fn test_plugin_start_stop_restart_commands() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(start_command).await;
     assert!(matches!(response.status, CommandStatus::Failed));
-    
+
     // Test stop command for non-existent plugin
     let stop_command = CommandMessage {
         id: "stop-cmd-001".to_string(),
@@ -316,10 +326,10 @@ async fn test_plugin_start_stop_restart_commands() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(stop_command).await;
     assert!(matches!(response.status, CommandStatus::Failed));
-    
+
     // Test restart command for non-existent plugin
     let restart_command = CommandMessage {
         id: "restart-cmd-001".to_string(),
@@ -329,7 +339,7 @@ async fn test_plugin_start_stop_restart_commands() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(restart_command).await;
     assert!(matches!(response.status, CommandStatus::Failed));
 }
@@ -338,7 +348,7 @@ async fn test_plugin_start_stop_restart_commands() {
 async fn test_plugin_status_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, _config) = create_test_setup(&temp_dir).await;
-    
+
     // Test status for specific plugin (non-existent)
     let status_command = CommandMessage {
         id: "status-cmd-001".to_string(),
@@ -348,20 +358,18 @@ async fn test_plugin_status_command() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(status_command).await;
     assert!(matches!(response.status, CommandStatus::Failed));
-    
+
     // Test status for all plugins
     let status_all_command = CommandMessage {
         id: "status-cmd-002".to_string(),
-        command: CommandType::Status {
-            plugin_name: None,
-        },
+        command: CommandType::Status { plugin_name: None },
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(status_all_command).await;
     assert!(matches!(response.status, CommandStatus::Success));
     assert!(response.result.is_some());
@@ -371,7 +379,7 @@ async fn test_plugin_status_command() {
 async fn test_ssh_connect_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, _config) = create_test_setup(&temp_dir).await;
-    
+
     let command = CommandMessage {
         id: "ssh-cmd-001".to_string(),
         command: CommandType::SshConnect {
@@ -383,14 +391,17 @@ async fn test_ssh_connect_command() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "ssh-cmd-001");
     // Response could be success or failed depending on if SSH server is running
-    assert!(matches!(response.status, CommandStatus::Success | CommandStatus::Failed));
+    assert!(matches!(
+        response.status,
+        CommandStatus::Success | CommandStatus::Failed
+    ));
     assert!(response.result.is_some());
-    
+
     let result = response.result.unwrap();
     assert_eq!(result["session_id"], "test-session-001");
 }
@@ -399,7 +410,7 @@ async fn test_ssh_connect_command() {
 async fn test_ssh_disconnect_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, _config) = create_test_setup(&temp_dir).await;
-    
+
     let command = CommandMessage {
         id: "ssh-cmd-002".to_string(),
         command: CommandType::SshDisconnect {
@@ -408,13 +419,13 @@ async fn test_ssh_disconnect_command() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "ssh-cmd-002");
     assert!(matches!(response.status, CommandStatus::Success));
     assert!(response.result.is_some());
-    
+
     let result = response.result.unwrap();
     assert_eq!(result["session_id"], "test-session-002");
     // Should fail since session doesn't exist
@@ -425,10 +436,10 @@ async fn test_ssh_disconnect_command() {
 async fn test_ssh_data_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, _config) = create_test_setup(&temp_dir).await;
-    
+
     let test_data = b"echo 'test ssh data'";
     let base64_data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, test_data);
-    
+
     let command = CommandMessage {
         id: "ssh-cmd-003".to_string(),
         command: CommandType::SshData {
@@ -439,13 +450,13 @@ async fn test_ssh_data_command() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "ssh-cmd-003");
     assert!(matches!(response.status, CommandStatus::Success));
     assert!(response.result.is_some());
-    
+
     let result = response.result.unwrap();
     assert_eq!(result["session_id"], "test-session-003");
     // Should fail since session doesn't exist
@@ -456,7 +467,7 @@ async fn test_ssh_data_command() {
 async fn test_ssh_heartbeat_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, _config) = create_test_setup(&temp_dir).await;
-    
+
     let command = CommandMessage {
         id: "ssh-cmd-004".to_string(),
         command: CommandType::SshHeartbeat {
@@ -465,13 +476,13 @@ async fn test_ssh_heartbeat_command() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "ssh-cmd-004");
     assert!(matches!(response.status, CommandStatus::Success));
     assert!(response.result.is_some());
-    
+
     let result = response.result.unwrap();
     assert_eq!(result["session_id"], "test-session-004");
     // Should fail since session doesn't exist
@@ -482,20 +493,20 @@ async fn test_ssh_heartbeat_command() {
 async fn test_system_restart_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, _config) = create_test_setup(&temp_dir).await;
-    
+
     let command = CommandMessage {
         id: "restart-cmd-001".to_string(),
         command: CommandType::SystemRestart,
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "restart-cmd-001");
     assert!(matches!(response.status, CommandStatus::Success));
     assert!(response.result.is_some());
-    
+
     let result = response.result.unwrap();
     assert_eq!(result["status"], "restart_scheduled");
     assert_eq!(result["delay_seconds"], 5);
@@ -505,7 +516,7 @@ async fn test_system_restart_command() {
 async fn test_ota_update_command() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, _config) = create_test_setup(&temp_dir).await;
-    
+
     let command = CommandMessage {
         id: "ota-cmd-001".to_string(),
         command: CommandType::OtaUpdate {
@@ -516,9 +527,9 @@ async fn test_ota_update_command() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "ota-cmd-001");
     // Should fail because URL doesn't exist
     assert!(matches!(response.status, CommandStatus::Failed));
@@ -531,18 +542,20 @@ async fn test_ssh_disabled_config() {
     let mut config = create_test_config_with_temp_dir(&temp_dir);
     config.ssh.enabled = false;
     let config = Arc::new(config);
-    
+
     let (command_sender, _command_receiver) = mpsc::unbounded_channel();
     let (mqtt_client, _) = MqttClient::new(
         "localhost".to_string(),
         1883,
         "test-gateway".to_string(),
         command_sender,
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
     let mqtt_client_arc = Arc::new(mqtt_client);
     let ssh_tunnel_manager = Arc::new(SshTunnelManager::new(config.clone(), mqtt_client_arc));
     let command_handler = CommandHandler::new(config.clone(), ssh_tunnel_manager);
-    
+
     let command = CommandMessage {
         id: "ssh-cmd-disabled".to_string(),
         command: CommandType::SshConnect {
@@ -554,9 +567,9 @@ async fn test_ssh_disabled_config() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "ssh-cmd-disabled");
     assert!(matches!(response.status, CommandStatus::Failed));
     assert!(response.message.contains("SSH functionality is disabled"));
@@ -566,15 +579,20 @@ async fn test_ssh_disabled_config() {
 async fn test_plugin_install_without_config() {
     let temp_dir = TempDir::new().unwrap();
     let (command_handler, config) = create_test_setup(&temp_dir).await;
-    
+
     // Create a test script file (starts with shebang)
     let test_script_path = temp_dir.path().join("test_script");
-    tokio::fs::write(&test_script_path, b"#!/bin/bash\necho 'Hello from script'\n").await.unwrap();
-    
+    tokio::fs::write(
+        &test_script_path,
+        b"#!/bin/bash\necho 'Hello from script'\n",
+    )
+    .await
+    .unwrap();
+
     let source = PluginSource::Local {
         path: test_script_path.to_string_lossy().to_string(),
     };
-    
+
     let command = CommandMessage {
         id: "install-cmd-no-config".to_string(),
         command: CommandType::Install {
@@ -585,12 +603,12 @@ async fn test_plugin_install_without_config() {
         timestamp: "2025-06-18T15:30:00Z".to_string(),
         parameters: HashMap::new(),
     };
-    
+
     let response = command_handler.handle_command(command).await;
-    
+
     assert_eq!(response.command_id, "install-cmd-no-config");
     assert!(matches!(response.status, CommandStatus::Success));
-    
+
     // Verify plugin was installed with default config
     let plugin_dir = config.plugins.install_dir.join("test-no-config-plugin");
     assert!(plugin_dir.exists());

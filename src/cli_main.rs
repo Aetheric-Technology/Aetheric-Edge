@@ -1,12 +1,12 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
+use serde_json::Value;
+use std::io::{self, Write};
 use std::path::PathBuf;
+use tokio::time::{timeout, Duration};
 use tracing::{error, info};
 use tracing_subscriber;
-use rumqttc::{MqttOptions, AsyncClient, QoS, Event, Packet};
-use tokio::time::{timeout, Duration};
-use std::io::{self, Write};
-use serde_json::Value;
 
 mod certs;
 mod config;
@@ -149,7 +149,11 @@ enum MqttCommands {
         qos: u8,
         #[arg(long, help = "Hide topic names in output")]
         no_topic: bool,
-        #[arg(short, long, help = "Output file to write messages (stdout if not specified)")]
+        #[arg(
+            short,
+            long,
+            help = "Output file to write messages (stdout if not specified)"
+        )]
         output: Option<PathBuf>,
         #[arg(long, help = "MQTT broker host (overrides config)")]
         host: Option<String>,
@@ -165,11 +169,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Initialize logging
-    let log_filter = if cli.verbose {
-        "debug"
-    } else {
-        "info"
-    };
+    let log_filter = if cli.verbose { "debug" } else { "info" };
 
     tracing_subscriber::fmt()
         .with_env_filter(log_filter)
@@ -196,10 +196,14 @@ async fn handle_cert_commands(action: CertCommands, cert_dir: Option<PathBuf>) -
 
     match action {
         CertCommands::Create { device_id, san } => {
-            cert_manager.create_device_certificate(&device_id, san).await?;
+            cert_manager
+                .create_device_certificate(&device_id, san)
+                .await?;
         }
         CertCommands::Csr { device_id, san } => {
-            cert_manager.create_certificate_signing_request(&device_id, san).await?;
+            cert_manager
+                .create_certificate_signing_request(&device_id, san)
+                .await?;
         }
         CertCommands::Install { cert_file } => {
             let cert_pem = std::fs::read_to_string(&cert_file)
@@ -216,12 +220,25 @@ async fn handle_cert_commands(action: CertCommands, cert_dir: Option<PathBuf>) -
                 println!("Certificate Information:");
                 println!("  Subject: {}", cert_info.subject);
                 println!("  Issuer: {}", cert_info.issuer);
-                println!("  Valid from: {}", cert_info.not_before.format("%Y-%m-%d %H:%M:%S UTC"));
-                println!("  Valid until: {}", cert_info.not_after.format("%Y-%m-%d %H:%M:%S UTC"));
+                println!(
+                    "  Valid from: {}",
+                    cert_info.not_before.format("%Y-%m-%d %H:%M:%S UTC")
+                );
+                println!(
+                    "  Valid until: {}",
+                    cert_info.not_after.format("%Y-%m-%d %H:%M:%S UTC")
+                );
                 println!("  Serial: {}", cert_info.serial_number);
-                println!("  Status: {}", if cert_info.is_valid { "Valid" } else { "Invalid" });
+                println!(
+                    "  Status: {}",
+                    if cert_info.is_valid {
+                        "Valid"
+                    } else {
+                        "Invalid"
+                    }
+                );
                 println!("  Days until expiry: {}", cert_info.days_until_expiry);
-                
+
                 if let Some(device_id) = cert_manager.extract_device_id_from_cert()? {
                     println!("  Device ID: {}", device_id);
                 }
@@ -234,7 +251,10 @@ async fn handle_cert_commands(action: CertCommands, cert_dir: Option<PathBuf>) -
             if is_valid {
                 println!("Certificate is valid and not expiring within {} days", days);
             } else {
-                println!("Certificate is either missing or expiring within {} days", days);
+                println!(
+                    "Certificate is either missing or expiring within {} days",
+                    days
+                );
                 std::process::exit(1);
             }
         }
@@ -254,7 +274,8 @@ async fn handle_config_commands(action: ConfigCommands) -> Result<()> {
         ConfigCommands::Init { config } => {
             let config_path = config.unwrap_or_else(|| AethericConfig::get_config_path());
             let default_config = AethericConfig::default();
-            default_config.save_to_file(&config_path)
+            default_config
+                .save_to_file(&config_path)
                 .context("Failed to create default configuration")?;
             info!("Default configuration created at: {:?}", config_path);
         }
@@ -262,16 +283,16 @@ async fn handle_config_commands(action: ConfigCommands) -> Result<()> {
             let config_path = config.unwrap_or_else(|| AethericConfig::get_config_path());
             let config = AethericConfig::load_from_file(&config_path)
                 .context("Failed to load configuration")?;
-            
-            let toml_str = toml::to_string_pretty(&config)
-                .context("Failed to serialize configuration")?;
+
+            let toml_str =
+                toml::to_string_pretty(&config).context("Failed to serialize configuration")?;
             println!("{}", toml_str);
         }
         ConfigCommands::Get { key, config } => {
             let config_path = config.unwrap_or_else(|| AethericConfig::get_config_path());
             let config = AethericConfig::load_from_file(&config_path)
                 .context("Failed to load configuration")?;
-            
+
             let value = get_config_value(&config, &key)?;
             println!("{}", value);
         }
@@ -279,11 +300,12 @@ async fn handle_config_commands(action: ConfigCommands) -> Result<()> {
             let config_path = config.unwrap_or_else(|| AethericConfig::get_config_path());
             let mut config = AethericConfig::load_from_file(&config_path)
                 .context("Failed to load configuration")?;
-            
+
             set_config_value(&mut config, &key, &value)?;
-            config.save_to_file(&config_path)
+            config
+                .save_to_file(&config_path)
                 .context("Failed to save configuration")?;
-            
+
             info!("Configuration updated: {} = {}", key, value);
         }
     }
@@ -309,7 +331,9 @@ fn get_config_value(config: &AethericConfig, key: &str) -> Result<String> {
         "plugins.max_concurrent_installs" => Ok(config.plugins.max_concurrent_installs.to_string()),
         "certificates.cert_dir" => Ok(config.certificates.cert_dir.to_string_lossy().to_string()),
         "certificates.auto_renew" => Ok(config.certificates.auto_renew.to_string()),
-        "certificates.renew_days_threshold" => Ok(config.certificates.renew_days_threshold.to_string()),
+        "certificates.renew_days_threshold" => {
+            Ok(config.certificates.renew_days_threshold.to_string())
+        }
         "ssh.enabled" => Ok(config.ssh.enabled.to_string()),
         "ssh.port" => Ok(config.ssh.port.to_string()),
         "ssh.max_sessions" => Ok(config.ssh.max_sessions.to_string()),
@@ -321,26 +345,64 @@ fn get_config_value(config: &AethericConfig, key: &str) -> Result<String> {
 fn set_config_value(config: &mut AethericConfig, key: &str, value: &str) -> Result<()> {
     match key {
         "gateway.id" => config.gateway.id = value.to_string(),
-        "gateway.name" => config.gateway.name = if value.is_empty() { None } else { Some(value.to_string()) },
-        "gateway.location" => config.gateway.location = if value.is_empty() { None } else { Some(value.to_string()) },
-        "gateway.description" => config.gateway.description = if value.is_empty() { None } else { Some(value.to_string()) },
+        "gateway.name" => {
+            config.gateway.name = if value.is_empty() {
+                None
+            } else {
+                Some(value.to_string())
+            }
+        }
+        "gateway.location" => {
+            config.gateway.location = if value.is_empty() {
+                None
+            } else {
+                Some(value.to_string())
+            }
+        }
+        "gateway.description" => {
+            config.gateway.description = if value.is_empty() {
+                None
+            } else {
+                Some(value.to_string())
+            }
+        }
         "mqtt.host" => config.mqtt.host = value.to_string(),
         "mqtt.port" => config.mqtt.port = value.parse().context("Invalid port number")?,
-        "mqtt.username" => config.mqtt.username = if value.is_empty() { None } else { Some(value.to_string()) },
+        "mqtt.username" => {
+            config.mqtt.username = if value.is_empty() {
+                None
+            } else {
+                Some(value.to_string())
+            }
+        }
         "mqtt.tls" => config.mqtt.tls = value.parse().context("Invalid boolean value")?,
-        "health.report_interval_seconds" => config.health.report_interval_seconds = value.parse().context("Invalid number")?,
-        "health.metrics_enabled" => config.health.metrics_enabled = value.parse().context("Invalid boolean value")?,
+        "health.report_interval_seconds" => {
+            config.health.report_interval_seconds = value.parse().context("Invalid number")?
+        }
+        "health.metrics_enabled" => {
+            config.health.metrics_enabled = value.parse().context("Invalid boolean value")?
+        }
         "plugins.install_dir" => config.plugins.install_dir = value.into(),
         "plugins.temp_dir" => config.plugins.temp_dir = value.into(),
-        "plugins.docker_enabled" => config.plugins.docker_enabled = value.parse().context("Invalid boolean value")?,
-        "plugins.max_concurrent_installs" => config.plugins.max_concurrent_installs = value.parse().context("Invalid number")?,
+        "plugins.docker_enabled" => {
+            config.plugins.docker_enabled = value.parse().context("Invalid boolean value")?
+        }
+        "plugins.max_concurrent_installs" => {
+            config.plugins.max_concurrent_installs = value.parse().context("Invalid number")?
+        }
         "certificates.cert_dir" => config.certificates.cert_dir = value.into(),
-        "certificates.auto_renew" => config.certificates.auto_renew = value.parse().context("Invalid boolean value")?,
-        "certificates.renew_days_threshold" => config.certificates.renew_days_threshold = value.parse().context("Invalid number")?,
+        "certificates.auto_renew" => {
+            config.certificates.auto_renew = value.parse().context("Invalid boolean value")?
+        }
+        "certificates.renew_days_threshold" => {
+            config.certificates.renew_days_threshold = value.parse().context("Invalid number")?
+        }
         "ssh.enabled" => config.ssh.enabled = value.parse().context("Invalid boolean value")?,
         "ssh.port" => config.ssh.port = value.parse().context("Invalid port number")?,
         "ssh.max_sessions" => config.ssh.max_sessions = value.parse().context("Invalid number")?,
-        "ssh.session_timeout_minutes" => config.ssh.session_timeout_minutes = value.parse().context("Invalid number")?,
+        "ssh.session_timeout_minutes" => {
+            config.ssh.session_timeout_minutes = value.parse().context("Invalid number")?
+        }
         _ => anyhow::bail!("Unknown configuration key: {}", key),
     }
     Ok(())
@@ -348,12 +410,24 @@ fn set_config_value(config: &mut AethericConfig, key: &str, value: &str) -> Resu
 
 async fn handle_mqtt_commands(action: MqttCommands) -> Result<()> {
     match action {
-        MqttCommands::Pub { topic, message, qos, retain, host, port, config } => {
-            handle_mqtt_publish(topic, message, qos, retain, host, port, config).await
-        }
-        MqttCommands::Sub { topic, qos, no_topic, output, host, port, config } => {
-            handle_mqtt_subscribe(topic, qos, no_topic, output, host, port, config).await
-        }
+        MqttCommands::Pub {
+            topic,
+            message,
+            qos,
+            retain,
+            host,
+            port,
+            config,
+        } => handle_mqtt_publish(topic, message, qos, retain, host, port, config).await,
+        MqttCommands::Sub {
+            topic,
+            qos,
+            no_topic,
+            output,
+            host,
+            port,
+            config,
+        } => handle_mqtt_subscribe(topic, qos, no_topic, output, host, port, config).await,
     }
 }
 
@@ -380,7 +454,12 @@ async fn handle_mqtt_publish(
         0 => QoS::AtMostOnce,
         1 => QoS::AtLeastOnce,
         2 => QoS::ExactlyOnce,
-        _ => return Err(anyhow::anyhow!("Invalid QoS level: {}. Must be 0, 1, or 2", qos)),
+        _ => {
+            return Err(anyhow::anyhow!(
+                "Invalid QoS level: {}. Must be 0, 1, or 2",
+                qos
+            ))
+        }
     };
 
     // Validate and potentially format JSON message
@@ -407,7 +486,9 @@ async fn handle_mqtt_publish(
 
     // Publish message
     info!("Publishing to topic '{}' on {}:{}", topic, host, port);
-    client.publish(&topic, qos_level, retain, formatted_message.as_bytes()).await
+    client
+        .publish(&topic, qos_level, retain, formatted_message.as_bytes())
+        .await
         .context("Failed to publish message")?;
 
     // Wait for publish to complete with timeout
@@ -438,7 +519,8 @@ async fn handle_mqtt_publish(
                 _ => {}
             }
         }
-    }).await;
+    })
+    .await;
 
     match result {
         Ok(Ok(())) => {
@@ -449,10 +531,15 @@ async fn handle_mqtt_publish(
         Err(_) => {
             // For QoS 0, we might not get an ack, so we consider it successful after timeout
             if qos == 0 {
-                println!("✓ Message sent to topic '{}' (QoS 0 - fire and forget)", topic);
+                println!(
+                    "✓ Message sent to topic '{}' (QoS 0 - fire and forget)",
+                    topic
+                );
                 Ok(())
             } else {
-                Err(anyhow::anyhow!("Timeout waiting for publish acknowledgment"))
+                Err(anyhow::anyhow!(
+                    "Timeout waiting for publish acknowledgment"
+                ))
             }
         }
     }
@@ -481,7 +568,12 @@ async fn handle_mqtt_subscribe(
         0 => QoS::AtMostOnce,
         1 => QoS::AtLeastOnce,
         2 => QoS::ExactlyOnce,
-        _ => return Err(anyhow::anyhow!("Invalid QoS level: {}. Must be 0, 1, or 2", qos)),
+        _ => {
+            return Err(anyhow::anyhow!(
+                "Invalid QoS level: {}. Must be 0, 1, or 2",
+                qos
+            ))
+        }
     };
 
     // Set up MQTT client
@@ -504,17 +596,24 @@ async fn handle_mqtt_subscribe(
     let (client, mut eventloop) = AsyncClient::new(mqttoptions, 100);
 
     // Subscribe to topic
-    info!("Subscribing to topic '{}' on {}:{} (QoS {})", topic, host, port, qos);
-    client.subscribe(&topic, qos_level).await
+    info!(
+        "Subscribing to topic '{}' on {}:{} (QoS {})",
+        topic, host, port, qos
+    );
+    client
+        .subscribe(&topic, qos_level)
+        .await
         .context("Failed to subscribe to topic")?;
 
     // Set up output writer
     let mut output_writer: Box<dyn Write + Send> = if let Some(file_path) = output_file {
-        Box::new(std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&file_path)
-            .with_context(|| format!("Failed to open output file: {:?}", file_path))?)
+        Box::new(
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&file_path)
+                .with_context(|| format!("Failed to open output file: {:?}", file_path))?,
+        )
     } else {
         Box::new(io::stdout())
     };
@@ -539,17 +638,17 @@ async fn handle_mqtt_subscribe(
             Ok(Event::Incoming(Packet::Publish(publish))) => {
                 let payload = String::from_utf8_lossy(&publish.payload);
                 let formatted_payload = format_received_message(&payload)?;
-                
+
                 let output = if no_topic {
                     format!("{}\n", formatted_payload)
                 } else {
                     format!("[{}] {}\n", publish.topic, formatted_payload)
                 };
-                
-                output_writer.write_all(output.as_bytes())
+
+                output_writer
+                    .write_all(output.as_bytes())
                     .context("Failed to write message to output")?;
-                output_writer.flush()
-                    .context("Failed to flush output")?;
+                output_writer.flush().context("Failed to flush output")?;
             }
             Ok(_) => {
                 // Other events, continue

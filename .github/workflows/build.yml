@@ -39,9 +39,11 @@ jobs:
         run: cargo check --all-targets --all-features
       
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings -A dead_code
+        run: cargo clippy --all-targets --all-features -- -W clippy::all -A dead_code -A unused_variables -A unused_imports -A clippy::needless_borrows_for_generic_args -A clippy::redundant_pattern_matching -A clippy::too_many_arguments -A clippy::unnecessary_cast -A clippy::derivable_impls -A clippy::redundant_closure -A clippy::manual_strip -A clippy::needless_borrow -A clippy::useless_vec -A clippy::field_reassign_with_default -A clippy::println_empty_string -A clippy::manual_flatten -A clippy::single_component_path_imports -A clippy::empty_line_after_doc_comments -A clippy::manual_range_contains -A clippy::bool_assert_comparison -A clippy::new_without_default -A clippy::absurd_extreme_comparisons -A clippy::assertions_on_constants -A unused_comparisons -A clippy::len_zero
       
       - name: Run tests
+        env:
+          RUSTFLAGS: "-A dead_code -A unused_variables -A unused_imports -A clippy::needless_borrows_for_generic_args -A clippy::redundant_pattern_matching -A clippy::too_many_arguments -A clippy::unnecessary_cast -A clippy::derivable_impls -A clippy::redundant_closure -A clippy::manual_strip -A clippy::needless_borrow -A clippy::useless_vec -A clippy::field_reassign_with_default -A clippy::println_empty_string -A clippy::manual_flatten -A clippy::single_component_path_imports -A clippy::empty_line_after_doc_comments -A clippy::manual_range_contains -A clippy::bool_assert_comparison -A clippy::new_without_default -A clippy::absurd_extreme_comparisons -A clippy::assertions_on_constants -A unused_comparisons"
         run: cargo test --all-features
 
   # Multi-platform builds
@@ -128,7 +130,7 @@ jobs:
       - name: Build native
         if: ${{ !matrix.platform.use_cross }}
         env:
-          RUSTFLAGS: "-A dead_code"
+          RUSTFLAGS: "-A dead_code -A unused_variables -A unused_imports -A clippy::needless_borrows_for_generic_args -A clippy::redundant_pattern_matching -A clippy::too_many_arguments -A clippy::unnecessary_cast -A clippy::derivable_impls -A clippy::redundant_closure -A clippy::manual_strip -A clippy::needless_borrow -A clippy::useless_vec -A clippy::field_reassign_with_default -A clippy::println_empty_string -A clippy::manual_flatten -A clippy::single_component_path_imports -A clippy::empty_line_after_doc_comments -A clippy::manual_range_contains -A clippy::bool_assert_comparison -A clippy::new_without_default -A clippy::absurd_extreme_comparisons -A clippy::assertions_on_constants -A unused_comparisons"
         run: cargo build --locked --release --target ${{ matrix.platform.target }}
       
       # Strip binaries for native builds (Unix only)

@@ -1,13 +1,13 @@
 use aetheric_edge::config::AethericConfig;
 use anyhow::Result;
-use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, QoS};
+use rumqttc::QoS;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{timeout, Duration};
-use tracing::{info, warn};
+use tracing::info;
 
 /// Mock MQTT broker for testing
 #[derive(Debug, Clone)]
@@ -65,7 +65,10 @@ impl MockMqttBroker {
         // Send to subscribers
         let subscribers = self.subscribers.lock().await;
         if let Some(topic_subscribers) = subscribers.get(&topic) {
-            let message = ReceivedMessage { topic: topic.clone(), payload: payload.clone() };
+            let message = ReceivedMessage {
+                topic: topic.clone(),
+                payload: payload.clone(),
+            };
             for sender in topic_subscribers {
                 let _ = sender.send(message.clone());
             }
@@ -73,9 +76,9 @@ impl MockMqttBroker {
 
         // Also send to wildcard subscribers (#)
         if let Some(wildcard_subscribers) = subscribers.get("#") {
-            let message = ReceivedMessage { 
-                topic: topic.clone(), 
-                payload: payload.clone() 
+            let message = ReceivedMessage {
+                topic: topic.clone(),
+                payload: payload.clone(),
             };
             for sender in wildcard_subscribers {
                 let _ = sender.send(message.clone());
@@ -180,16 +183,16 @@ impl TestMqttClient {
         qos: QoS,
         retain: bool,
     ) -> Result<()> {
-        self.broker.publish(
-            topic.to_string(),
-            message.as_bytes().to_vec(),
-            qos,
-            retain,
-        ).await;
+        self.broker
+            .publish(topic.to_string(), message.as_bytes().to_vec(), qos, retain)
+            .await;
         Ok(())
     }
 
-    pub async fn subscribe_to_topic(&self, topic: &str) -> mpsc::UnboundedReceiver<ReceivedMessage> {
+    pub async fn subscribe_to_topic(
+        &self,
+        topic: &str,
+    ) -> mpsc::UnboundedReceiver<ReceivedMessage> {
         self.broker.subscribe(topic.to_string()).await
     }
 
@@ -201,7 +204,6 @@ impl TestMqttClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::sleep;
 
     #[tokio::test]
     async fn test_mock_broker_basic_functionality() {
@@ -209,12 +211,14 @@ mod tests {
         broker.start().await;
 
         // Test publishing a message
-        broker.publish(
-            "test/topic".to_string(),
-            b"Hello, World!".to_vec(),
-            QoS::AtMostOnce,
-            false,
-        ).await;
+        broker
+            .publish(
+                "test/topic".to_string(),
+                b"Hello, World!".to_vec(),
+                QoS::AtMostOnce,
+                false,
+            )
+            .await;
 
         let messages = broker.get_published_messages().await;
         assert_eq!(messages.len(), 1);
@@ -234,10 +238,16 @@ mod tests {
 
         // Publish a message
         let test_message = r#"{"temperature": 23.5, "unit": "°C"}"#;
-        client.publish_message("sensor/temperature", test_message, QoS::AtMostOnce, false).await.unwrap();
+        client
+            .publish_message("sensor/temperature", test_message, QoS::AtMostOnce, false)
+            .await
+            .unwrap();
 
         // Verify subscriber receives the message
-        let received = timeout(Duration::from_millis(100), subscriber.recv()).await.unwrap().unwrap();
+        let received = timeout(Duration::from_millis(100), subscriber.recv())
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(received.topic, "sensor/temperature");
         assert_eq!(String::from_utf8(received.payload).unwrap(), test_message);
 
@@ -258,7 +268,10 @@ mod tests {
 
         for (i, msg) in messages.iter().enumerate() {
             let topic = format!("sensor/{}", i);
-            client.publish_message(&topic, msg, QoS::AtLeastOnce, false).await.unwrap();
+            client
+                .publish_message(&topic, msg, QoS::AtLeastOnce, false)
+                .await
+                .unwrap();
         }
 
         let published = client.get_published_messages().await;
@@ -283,7 +296,10 @@ mod tests {
         let qos_levels = vec![QoS::AtMostOnce, QoS::AtLeastOnce, QoS::ExactlyOnce];
 
         for qos in qos_levels {
-            client.publish_message("test/qos", "test message", qos, false).await.unwrap();
+            client
+                .publish_message("test/qos", "test message", qos, false)
+                .await
+                .unwrap();
         }
 
         let messages = client.get_published_messages().await;
@@ -301,7 +317,10 @@ mod tests {
         client.broker.start().await;
 
         // Publish a retained message
-        client.publish_message("device/status", "online", QoS::AtLeastOnce, true).await.unwrap();
+        client
+            .publish_message("device/status", "online", QoS::AtLeastOnce, true)
+            .await
+            .unwrap();
 
         let messages = client.get_published_messages().await;
         assert_eq!(messages.len(), 1);
@@ -322,12 +341,18 @@ mod tests {
         // Publish to various topics
         let topics = vec!["sensor/temp", "device/status", "alerts/fire"];
         for topic in &topics {
-            client.publish_message(topic, "test data", QoS::AtMostOnce, false).await.unwrap();
+            client
+                .publish_message(topic, "test data", QoS::AtMostOnce, false)
+                .await
+                .unwrap();
         }
 
         // Verify wildcard subscriber receives all messages
         for expected_topic in &topics {
-            let received = timeout(Duration::from_millis(100), wildcard_subscriber.recv()).await.unwrap().unwrap();
+            let received = timeout(Duration::from_millis(100), wildcard_subscriber.recv())
+                .await
+                .unwrap()
+                .unwrap();
             assert_eq!(received.topic, *expected_topic);
         }
 
@@ -345,12 +370,24 @@ mod tests {
         let mut sub3 = client.subscribe_to_topic("broadcast").await;
 
         // Publish a message
-        client.publish_message("broadcast", "Hello everyone!", QoS::AtMostOnce, false).await.unwrap();
+        client
+            .publish_message("broadcast", "Hello everyone!", QoS::AtMostOnce, false)
+            .await
+            .unwrap();
 
         // All subscribers should receive the message
-        let msg1 = timeout(Duration::from_millis(100), sub1.recv()).await.unwrap().unwrap();
-        let msg2 = timeout(Duration::from_millis(100), sub2.recv()).await.unwrap().unwrap();
-        let msg3 = timeout(Duration::from_millis(100), sub3.recv()).await.unwrap().unwrap();
+        let msg1 = timeout(Duration::from_millis(100), sub1.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let msg2 = timeout(Duration::from_millis(100), sub2.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let msg3 = timeout(Duration::from_millis(100), sub3.recv())
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(msg1.topic, "broadcast");
         assert_eq!(msg2.topic, "broadcast");
@@ -373,7 +410,10 @@ mod tests {
         let large_data = "X".repeat(1024 * 1024);
         let large_json = format!(r#"{{"data": "{}"}}"#, large_data);
 
-        client.publish_message("large/message", &large_json, QoS::AtLeastOnce, false).await.unwrap();
+        client
+            .publish_message("large/message", &large_json, QoS::AtLeastOnce, false)
+            .await
+            .unwrap();
 
         let messages = client.get_published_messages().await;
         assert_eq!(messages.len(), 1);
@@ -399,7 +439,9 @@ mod tests {
             let handle = tokio::spawn(async move {
                 let topic = format!("concurrent/{}", i);
                 let message = format!(r#"{{"id": {}, "data": "test"}}"#, i);
-                client_clone.publish_message(&topic, &message, QoS::AtMostOnce, false).await
+                client_clone
+                    .publish_message(&topic, &message, QoS::AtMostOnce, false)
+                    .await
             });
             handles.push(handle);
         }
@@ -429,15 +471,20 @@ mod tests {
     #[tokio::test]
     async fn test_mqtt_error_conditions() {
         let client = TestMqttClient::new();
-        
+
         // Test publishing when broker is not started
-        let result = client.publish_message("test", "message", QoS::AtMostOnce, false).await;
+        let result = client
+            .publish_message("test", "message", QoS::AtMostOnce, false)
+            .await;
         assert!(result.is_ok()); // Our mock broker doesn't enforce connection state
 
         // Test with empty topic
         client.broker.start().await;
-        client.publish_message("", "empty topic", QoS::AtMostOnce, false).await.unwrap();
-        
+        client
+            .publish_message("", "empty topic", QoS::AtMostOnce, false)
+            .await
+            .unwrap();
+
         let messages = client.get_published_messages().await;
         assert_eq!(messages.len(), 2); // Both messages should be recorded
 
@@ -454,12 +501,18 @@ mod tests {
         // Publish messages in order
         for i in 0..5 {
             let message = format!("Message {}", i);
-            client.publish_message("ordered", &message, QoS::AtLeastOnce, false).await.unwrap();
+            client
+                .publish_message("ordered", &message, QoS::AtLeastOnce, false)
+                .await
+                .unwrap();
         }
 
         // Verify messages are received in order
         for i in 0..5 {
-            let received = timeout(Duration::from_millis(100), subscriber.recv()).await.unwrap().unwrap();
+            let received = timeout(Duration::from_millis(100), subscriber.recv())
+                .await
+                .unwrap()
+                .unwrap();
             let expected = format!("Message {}", i);
             assert_eq!(String::from_utf8(received.payload).unwrap(), expected);
         }
@@ -500,7 +553,7 @@ mod cli_integration_tests {
         // For testing, we just validate the parameters
         assert!(!topic.is_empty());
         assert!(!formatted_message.is_empty());
-        
+
         Ok(())
     }
 
@@ -536,12 +589,22 @@ mod cli_integration_tests {
         let test_cases = vec![
             ("sensor/temp", r#"{"temperature": 23.5}"#, 0, false),
             ("device/status", "online", 1, true),
-            ("alerts/fire", r#"{"level": "critical", "location": "building-A"}"#, 2, false),
+            (
+                "alerts/fire",
+                r#"{"level": "critical", "location": "building-A"}"#,
+                2,
+                false,
+            ),
         ];
 
         for (topic, message, qos, retain) in test_cases {
             let result = simulate_cli_publish(&config, topic, message, qos, retain).await;
-            assert!(result.is_ok(), "Failed for topic: {}, message: {}", topic, message);
+            assert!(
+                result.is_ok(),
+                "Failed for topic: {}, message: {}",
+                topic,
+                message
+            );
         }
     }
 
@@ -552,7 +615,10 @@ mod cli_integration_tests {
         // Test invalid QoS
         let result = simulate_cli_publish(&config, "test", "message", 5, false).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid QoS level: 5"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid QoS level: 5"));
 
         // Test empty topic (should work in our implementation)
         let result = simulate_cli_publish(&config, "", "message", 0, false).await;
@@ -564,16 +630,12 @@ mod cli_integration_tests {
         let config = create_test_config();
 
         // Test valid subscribe scenarios
-        let test_cases = vec![
-            ("sensor/+", 0),
-            ("device/#", 1),
-            ("specific/topic", 2),
-        ];
+        let test_cases = vec![("sensor/+", 0), ("device/#", 1), ("specific/topic", 2)];
 
         for (topic, qos) in test_cases {
             let result = simulate_cli_subscribe(&config, topic, qos).await;
             assert!(result.is_ok(), "Failed for topic: {}, qos: {}", topic, qos);
-            
+
             let messages = result.unwrap();
             assert!(!messages.is_empty());
         }
@@ -592,13 +654,11 @@ mod cli_integration_tests {
             r#"{"null": null}"#,
             r#"{"array": [1, 2, 3]}"#,
             r#"{"nested": {"object": "value"}}"#,
-            
             // Edge cases
-            r#"{}"#, // Empty object
-            r#"[]"#, // Empty array
+            r#"{}"#,       // Empty object
+            r#"[]"#,       // Empty array
             r#""string""#, // JSON string
-            r#"42"#, // JSON number
-            
+            r#"42"#,       // JSON number
             // Non-JSON
             "plain text",
             "text with \"quotes\"",
@@ -632,7 +692,8 @@ mod cli_integration_tests {
 
         for size in sizes {
             let large_message = "X".repeat(size);
-            let result = simulate_cli_publish(&config, "test/large", &large_message, 0, false).await;
+            let result =
+                simulate_cli_publish(&config, "test/large", &large_message, 0, false).await;
             assert!(result.is_ok(), "Failed for message size: {} bytes", size);
         }
     }

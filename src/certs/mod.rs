@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use rcgen::{Certificate, CertificateParams, DistinguishedName, DnType, KeyPair, SanType, ExtendedKeyUsagePurpose};
+use rcgen::{
+    Certificate, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, KeyPair,
+    SanType,
+};
 use std::fs;
 use std::path::PathBuf;
 use tracing::{debug, info, warn};
@@ -19,7 +22,7 @@ fn set_secure_file_permissions(path: &std::path::Path, is_private_key: bool) -> 
         perms.set_mode(mode);
         fs::set_permissions(path, perms)?;
     }
-    
+
     #[cfg(windows)]
     {
         // On Windows, we could set ACLs here for better security
@@ -27,7 +30,7 @@ fn set_secure_file_permissions(path: &std::path::Path, is_private_key: bool) -> 
         // TODO: Implement Windows ACL setting for production use
         let _ = (path, is_private_key); // Suppress unused variable warning
     }
-    
+
     Ok(())
 }
 
@@ -93,8 +96,17 @@ impl CertificateManager {
         self.cert_dir.join("device-csr.pem")
     }
 
-    pub async fn create_device_certificate(&self, device_id: &str, subject_alt_names: Vec<String>) -> Result<()> {
-        self.create_device_certificate_with_algorithm(device_id, subject_alt_names, KeyAlgorithm::default()).await
+    pub async fn create_device_certificate(
+        &self,
+        device_id: &str,
+        subject_alt_names: Vec<String>,
+    ) -> Result<()> {
+        self.create_device_certificate_with_algorithm(
+            device_id,
+            subject_alt_names,
+            KeyAlgorithm::default(),
+        )
+        .await
     }
 
     pub async fn create_device_certificate_with_algorithm(
@@ -106,11 +118,11 @@ impl CertificateManager {
         info!("Creating device certificate for device ID: {}", device_id);
 
         // Ensure cert directory exists
-        fs::create_dir_all(&self.cert_dir)
-            .context("Failed to create certificate directory")?;
+        fs::create_dir_all(&self.cert_dir).context("Failed to create certificate directory")?;
 
         // Generate key pair with specified algorithm
-        let key_pair = self.generate_secure_key_pair(key_algorithm)
+        let key_pair = self
+            .generate_secure_key_pair(key_algorithm)
             .context("Failed to generate secure key pair")?;
 
         // Create certificate parameters
@@ -141,23 +153,21 @@ impl CertificateManager {
 
         // Set key usage for MQTT client authentication
         params.is_ca = rcgen::IsCa::NoCa;
-        
+
         // Add key usage extensions for MQTT client authentication
         params.key_usages = vec![
             rcgen::KeyUsagePurpose::DigitalSignature,
             rcgen::KeyUsagePurpose::KeyEncipherment,
         ];
-        
+
         // Add extended key usage for client authentication
-        params.extended_key_usages = vec![
-            ExtendedKeyUsagePurpose::ClientAuth,
-        ];
-        
+        params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ClientAuth];
+
         // Add custom extensions for MQTT broker compatibility
         params.custom_extensions = vec![
             // Certificate Policies extension for MQTT usage
             rcgen::CustomExtension::from_oid_content(
-                &[2, 5, 29, 32], // Certificate Policies OID
+                &[2, 5, 29, 32],  // Certificate Policies OID
                 vec![0x30, 0x00], // Empty SEQUENCE (anyPolicy)
             ),
         ];
@@ -166,8 +176,7 @@ impl CertificateManager {
         params.key_pair = Some(key_pair);
 
         // Generate certificate
-        let cert = Certificate::from_params(params)
-            .context("Failed to generate certificate")?;
+        let cert = Certificate::from_params(params).context("Failed to generate certificate")?;
 
         // Write private key with secure permissions
         let key_pem = cert.serialize_private_key_pem();
@@ -175,7 +184,8 @@ impl CertificateManager {
             .context("Failed to write device private key securely")?;
 
         // Write certificate with secure permissions
-        let cert_pem = cert.serialize_pem()
+        let cert_pem = cert
+            .serialize_pem()
             .context("Failed to serialize certificate")?;
         self.write_certificate_securely(&cert_pem)
             .context("Failed to write device certificate securely")?;
@@ -187,8 +197,17 @@ impl CertificateManager {
         Ok(())
     }
 
-    pub async fn create_certificate_signing_request(&self, device_id: &str, subject_alt_names: Vec<String>) -> Result<()> {
-        self.create_certificate_signing_request_with_algorithm(device_id, subject_alt_names, KeyAlgorithm::default()).await
+    pub async fn create_certificate_signing_request(
+        &self,
+        device_id: &str,
+        subject_alt_names: Vec<String>,
+    ) -> Result<()> {
+        self.create_certificate_signing_request_with_algorithm(
+            device_id,
+            subject_alt_names,
+            KeyAlgorithm::default(),
+        )
+        .await
     }
 
     pub async fn create_certificate_signing_request_with_algorithm(
@@ -197,14 +216,17 @@ impl CertificateManager {
         subject_alt_names: Vec<String>,
         key_algorithm: KeyAlgorithm,
     ) -> Result<()> {
-        info!("Creating certificate signing request for device ID: {}", device_id);
+        info!(
+            "Creating certificate signing request for device ID: {}",
+            device_id
+        );
 
         // Ensure cert directory exists
-        fs::create_dir_all(&self.cert_dir)
-            .context("Failed to create certificate directory")?;
+        fs::create_dir_all(&self.cert_dir).context("Failed to create certificate directory")?;
 
         // Generate key pair with specified algorithm
-        let key_pair = self.generate_secure_key_pair(key_algorithm)
+        let key_pair = self
+            .generate_secure_key_pair(key_algorithm)
             .context("Failed to generate secure key pair")?;
 
         // Create certificate parameters for CSR
@@ -232,11 +254,12 @@ impl CertificateManager {
         params.key_pair = Some(key_pair);
 
         // Generate certificate with the key pair
-        let cert = Certificate::from_params(params)
-            .context("Failed to create certificate for CSR")?;
+        let cert =
+            Certificate::from_params(params).context("Failed to create certificate for CSR")?;
 
         // Generate CSR
-        let csr_pem = cert.serialize_request_pem()
+        let csr_pem = cert
+            .serialize_request_pem()
             .context("Failed to generate CSR")?;
 
         // Write private key with secure permissions
@@ -247,15 +270,13 @@ impl CertificateManager {
         // Write CSR with secure permissions
         let csr_path = self.device_csr_path();
         let temp_path = csr_path.with_extension("tmp");
-        
-        fs::write(&temp_path, csr_pem)
-            .context("Failed to write temporary CSR file")?;
-        
+
+        fs::write(&temp_path, csr_pem).context("Failed to write temporary CSR file")?;
+
         set_secure_file_permissions(&temp_path, false)
             .context("Failed to set permissions on CSR")?;
-        
-        fs::rename(&temp_path, &csr_path)
-            .context("Failed to move CSR to final location")?;
+
+        fs::rename(&temp_path, &csr_path).context("Failed to move CSR to final location")?;
 
         info!("Certificate signing request created successfully");
         info!("CSR: {:?}", self.device_csr_path());
@@ -268,8 +289,7 @@ impl CertificateManager {
         info!("Installing device certificate");
 
         // Ensure cert directory exists
-        fs::create_dir_all(&self.cert_dir)
-            .context("Failed to create certificate directory")?;
+        fs::create_dir_all(&self.cert_dir).context("Failed to create certificate directory")?;
 
         // Validate certificate format
         self.validate_certificate_pem(cert_pem)
@@ -287,16 +307,14 @@ impl CertificateManager {
         info!("Installing CA certificate");
 
         // Ensure cert directory exists
-        fs::create_dir_all(&self.cert_dir)
-            .context("Failed to create certificate directory")?;
+        fs::create_dir_all(&self.cert_dir).context("Failed to create certificate directory")?;
 
         // Validate certificate format
         self.validate_certificate_pem(ca_cert_pem)
             .context("Invalid CA certificate format")?;
 
         // Write CA certificate
-        fs::write(self.ca_cert_path(), ca_cert_pem)
-            .context("Failed to write CA certificate")?;
+        fs::write(self.ca_cert_path(), ca_cert_pem).context("Failed to write CA certificate")?;
 
         info!("CA certificate installed successfully");
         Ok(())
@@ -308,8 +326,7 @@ impl CertificateManager {
             return Ok(None);
         }
 
-        let cert_pem = fs::read_to_string(&cert_path)
-            .context("Failed to read certificate file")?;
+        let cert_pem = fs::read_to_string(&cert_path).context("Failed to read certificate file")?;
 
         self.parse_certificate_info(&cert_pem).map(Some)
     }
@@ -323,7 +340,10 @@ impl CertificateManager {
                 );
                 return Ok(false);
             }
-            debug!("Certificate is valid for {} more days", cert_info.days_until_expiry);
+            debug!(
+                "Certificate is valid for {} more days",
+                cert_info.days_until_expiry
+            );
             Ok(true)
         } else {
             warn!("No certificate found");
@@ -331,20 +351,24 @@ impl CertificateManager {
         }
     }
 
-    pub async fn renew_certificate(&self, device_id: &str, subject_alt_names: Vec<String>) -> Result<()> {
+    pub async fn renew_certificate(
+        &self,
+        device_id: &str,
+        subject_alt_names: Vec<String>,
+    ) -> Result<()> {
         info!("Renewing device certificate");
 
         // Back up existing certificate if it exists
         let cert_path = self.device_cert_path();
         if cert_path.exists() {
             let backup_path = cert_path.with_extension("pem.backup");
-            fs::copy(&cert_path, &backup_path)
-                .context("Failed to backup existing certificate")?;
+            fs::copy(&cert_path, &backup_path).context("Failed to backup existing certificate")?;
             info!("Backed up existing certificate to {:?}", backup_path);
         }
 
         // Create new certificate
-        self.create_device_certificate(device_id, subject_alt_names).await
+        self.create_device_certificate(device_id, subject_alt_names)
+            .await
             .context("Failed to create renewed certificate")?;
 
         info!("Certificate renewed successfully");
@@ -362,8 +386,7 @@ impl CertificateManager {
 
         for path in &paths {
             if path.exists() {
-                fs::remove_file(path)
-                    .with_context(|| format!("Failed to remove {:?}", path))?;
+                fs::remove_file(path).with_context(|| format!("Failed to remove {:?}", path))?;
                 debug!("Removed {:?}", path);
             }
         }
@@ -375,9 +398,8 @@ impl CertificateManager {
     fn validate_certificate_pem(&self, pem: &str) -> Result<()> {
         use rustls_pemfile::Item;
         let mut cursor = std::io::Cursor::new(pem.as_bytes());
-        
-        match rustls_pemfile::read_one(&mut cursor)
-            .context("Failed to parse PEM data")? {
+
+        match rustls_pemfile::read_one(&mut cursor).context("Failed to parse PEM data")? {
             Some(Item::X509Certificate(_)) => Ok(()),
             Some(_) => anyhow::bail!("PEM data is not a certificate"),
             None => anyhow::bail!("No PEM data found"),
@@ -387,7 +409,7 @@ impl CertificateManager {
     fn parse_certificate_info(&self, cert_pem: &str) -> Result<CertificateInfo> {
         use rustls_pemfile::Item;
         use x509_parser::prelude::*;
-        
+
         let mut cursor = std::io::Cursor::new(cert_pem.as_bytes());
         let item = rustls_pemfile::read_one(&mut cursor)
             .context("Failed to parse PEM data")?
@@ -407,11 +429,11 @@ impl CertificateManager {
             .unwrap_or_else(|| Utc::now());
         let not_after = DateTime::<Utc>::from_timestamp(cert.validity().not_after.timestamp(), 0)
             .unwrap_or_else(|| Utc::now());
-        
+
         let now = Utc::now();
         let is_valid = now >= not_before && now <= not_after;
         let days_until_expiry = (not_after - now).num_days();
-        
+
         let serial_number = cert.serial.to_string();
 
         Ok(CertificateInfo {
@@ -431,12 +453,11 @@ impl CertificateManager {
             return Ok(None);
         }
 
-        let cert_pem = fs::read_to_string(&cert_path)
-            .context("Failed to read certificate file")?;
+        let cert_pem = fs::read_to_string(&cert_path).context("Failed to read certificate file")?;
 
         // Parse certificate and extract CN from subject
         let cert_info = self.parse_certificate_info(&cert_pem)?;
-        
+
         // Extract CN from subject string
         if let Some(cn_start) = cert_info.subject.find("CN=") {
             let cn_part = &cert_info.subject[cn_start + 3..];
@@ -451,7 +472,7 @@ impl CertificateManager {
     }
 
     // Security enhancement methods
-    
+
     fn generate_secure_key_pair(&self, algorithm: KeyAlgorithm) -> Result<KeyPair> {
         let key_pair = match algorithm {
             KeyAlgorithm::EcdsaP256 => {
@@ -482,44 +503,42 @@ impl CertificateManager {
 
     fn write_private_key_securely(&self, key_pem: &str) -> Result<()> {
         let key_path = self.device_key_path();
-        
+
         // Create temporary file for atomic write
         let temp_path = key_path.with_extension("tmp");
-        
+
         // Write to temporary file
-        fs::write(&temp_path, key_pem)
-            .context("Failed to write temporary private key file")?;
-        
+        fs::write(&temp_path, key_pem).context("Failed to write temporary private key file")?;
+
         // Set restrictive permissions (owner read/write only)
         set_secure_file_permissions(&temp_path, true)
             .context("Failed to set secure permissions on private key")?;
-        
+
         // Atomic move to final location
         fs::rename(&temp_path, &key_path)
             .context("Failed to move private key to final location")?;
-        
+
         info!("Private key written securely with 0600 permissions");
         Ok(())
     }
 
     fn write_certificate_securely(&self, cert_pem: &str) -> Result<()> {
         let cert_path = self.device_cert_path();
-        
+
         // Create temporary file for atomic write
         let temp_path = cert_path.with_extension("tmp");
-        
+
         // Write to temporary file
-        fs::write(&temp_path, cert_pem)
-            .context("Failed to write temporary certificate file")?;
-        
+        fs::write(&temp_path, cert_pem).context("Failed to write temporary certificate file")?;
+
         // Set appropriate permissions (owner read/write, group/others read)
         set_secure_file_permissions(&temp_path, false)
             .context("Failed to set permissions on certificate")?;
-        
+
         // Atomic move to final location
         fs::rename(&temp_path, &cert_path)
             .context("Failed to move certificate to final location")?;
-        
+
         info!("Certificate written securely with 0644 permissions");
         Ok(())
     }
@@ -530,13 +549,13 @@ impl CertificateManager {
             return Ok(false);
         }
 
-        let cert_pem = fs::read_to_string(&cert_path)
-            .context("Failed to read device certificate")?;
+        let cert_pem =
+            fs::read_to_string(&cert_path).context("Failed to read device certificate")?;
 
         // Parse device certificate
         use rustls_pemfile::Item;
         use x509_parser::prelude::*;
-        
+
         let mut cursor = std::io::Cursor::new(cert_pem.as_bytes());
         let item = rustls_pemfile::read_one(&mut cursor)
             .context("Failed to parse device certificate PEM")?
@@ -552,7 +571,8 @@ impl CertificateManager {
 
         // Check basic certificate validity
         let now = std::time::SystemTime::now();
-        let now_duration = now.duration_since(std::time::UNIX_EPOCH)
+        let now_duration = now
+            .duration_since(std::time::UNIX_EPOCH)
             .context("Failed to get current time")?;
         let now_timestamp = now_duration.as_secs() as i64;
 
@@ -579,7 +599,7 @@ impl CertificateManager {
                 .map_err(|e| anyhow::anyhow!("Failed to parse CA X.509 certificate: {}", e))?;
 
             // Check if device certificate is signed by CA
-            // Note: This is a simplified check. In production, you'd want to use a proper 
+            // Note: This is a simplified check. In production, you'd want to use a proper
             // certificate validation library like webpki or rustls for full chain validation
             if device_cert.issuer() != ca_cert.subject() {
                 warn!("Device certificate issuer does not match CA certificate subject");
@@ -592,14 +612,16 @@ impl CertificateManager {
         Ok(true)
     }
 
-    pub async fn get_certificate_fingerprint(&self, hash_algorithm: &str) -> Result<Option<String>> {
+    pub async fn get_certificate_fingerprint(
+        &self,
+        hash_algorithm: &str,
+    ) -> Result<Option<String>> {
         let cert_path = self.device_cert_path();
         if !cert_path.exists() {
             return Ok(None);
         }
 
-        let cert_pem = fs::read_to_string(&cert_path)
-            .context("Failed to read certificate file")?;
+        let cert_pem = fs::read_to_string(&cert_path).context("Failed to read certificate file")?;
 
         use rustls_pemfile::Item;
         let mut cursor = std::io::Cursor::new(cert_pem.as_bytes());
@@ -614,13 +636,13 @@ impl CertificateManager {
 
         let fingerprint = match hash_algorithm.to_lowercase().as_str() {
             "sha1" => {
-                use sha1::{Sha1, Digest};
+                use sha1::{Digest, Sha1};
                 let mut hasher = Sha1::new();
                 hasher.update(&cert_der);
                 format!("{:x}", hasher.finalize())
             }
             "sha256" => {
-                use sha2::{Sha256, Digest};
+                use sha2::{Digest, Sha256};
                 let mut hasher = Sha256::new();
                 hasher.update(&cert_der);
                 format!("{:x}", hasher.finalize())
@@ -643,14 +665,17 @@ impl CertificateManager {
 
         #[cfg(unix)]
         {
-            let metadata = fs::metadata(&key_path)
-                .context("Failed to read private key file metadata")?;
+            let metadata =
+                fs::metadata(&key_path).context("Failed to read private key file metadata")?;
             let permissions = metadata.permissions();
             let mode = permissions.mode();
-            
+
             // Check if permissions are 0600 (owner read/write only)
             if mode & 0o777 != 0o600 {
-                warn!("Private key file has insecure permissions: {:o}", mode & 0o777);
+                warn!(
+                    "Private key file has insecure permissions: {:o}",
+                    mode & 0o777
+                );
                 return Ok(false);
             }
         }

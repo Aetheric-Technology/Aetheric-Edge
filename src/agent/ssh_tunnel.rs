@@ -98,7 +98,7 @@ impl SshTunnelManager {
 
     pub async fn start(&self) -> Result<()> {
         info!("Starting SSH tunnel manager");
-        
+
         if !self.config.ssh.enabled {
             warn!("SSH functionality is disabled in configuration");
             return Ok(());
@@ -106,10 +106,10 @@ impl SshTunnelManager {
 
         // Subscribe to SSH-related MQTT topics
         self.subscribe_to_ssh_topics().await?;
-        
+
         // Start session cleanup task
         self.start_session_cleanup_task().await;
-        
+
         info!("SSH tunnel manager started successfully");
         Ok(())
     }
@@ -132,18 +132,24 @@ impl SshTunnelManager {
 
     pub async fn handle_ssh_command(&self, command: SshCommand) -> Result<SshResponse> {
         match command {
-            SshCommand::Connect { session_id, target_host, target_port, duration_minutes } => {
-                self.handle_connect_command(session_id, target_host, target_port, duration_minutes).await
+            SshCommand::Connect {
+                session_id,
+                target_host,
+                target_port,
+                duration_minutes,
+            } => {
+                self.handle_connect_command(session_id, target_host, target_port, duration_minutes)
+                    .await
             }
             SshCommand::Disconnect { session_id } => {
                 self.handle_disconnect_command(session_id).await
             }
-            SshCommand::Data { session_id, data, direction } => {
-                self.handle_data_command(session_id, data, direction).await
-            }
-            SshCommand::Heartbeat { session_id } => {
-                self.handle_heartbeat_command(session_id).await
-            }
+            SshCommand::Data {
+                session_id,
+                data,
+                direction,
+            } => self.handle_data_command(session_id, data, direction).await,
+            SshCommand::Heartbeat { session_id } => self.handle_heartbeat_command(session_id).await,
         }
     }
 
@@ -186,11 +192,22 @@ impl SshTunnelManager {
 
         let target_host = target_host.unwrap_or_else(|| "127.0.0.1".to_string());
         let target_port = target_port.unwrap_or(22);
-        
+
         // Create the SSH tunnel
-        match self.create_ssh_tunnel(session_id.clone(), target_host.clone(), target_port, duration_minutes).await {
+        match self
+            .create_ssh_tunnel(
+                session_id.clone(),
+                target_host.clone(),
+                target_port,
+                duration_minutes,
+            )
+            .await
+        {
             Ok(local_port) => {
-                info!("SSH tunnel created successfully for session {} on port {}", session_id, local_port);
+                info!(
+                    "SSH tunnel created successfully for session {} on port {}",
+                    session_id, local_port
+                );
                 Ok(SshResponse {
                     session_id,
                     status: SshSessionStatus::Connected,
@@ -200,7 +217,10 @@ impl SshTunnelManager {
                 })
             }
             Err(e) => {
-                error!("Failed to create SSH tunnel for session {}: {}", session_id, e);
+                error!(
+                    "Failed to create SSH tunnel for session {}: {}",
+                    session_id, e
+                );
                 Ok(SshResponse {
                     session_id,
                     status: SshSessionStatus::Failed,
@@ -221,7 +241,7 @@ impl SshTunnelManager {
     ) -> Result<u16> {
         // Find available local port
         let local_port = self.find_available_port().await?;
-        
+
         // Create local TCP listener
         let listener = TcpListener::bind(format!("127.0.0.1:{}", local_port)).await?;
         info!("SSH tunnel listening on 127.0.0.1:{}", local_port);
@@ -231,7 +251,7 @@ impl SshTunnelManager {
         let (downstream_tx, downstream_rx) = mpsc::unbounded_channel::<Vec<u8>>();
 
         let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-        
+
         // Create session
         let session = SshSession {
             session_id: session_id.clone(),
@@ -267,9 +287,14 @@ impl SshTunnelManager {
                 gateway_id,
                 duration_minutes,
                 config,
-            ).await {
-                error!("Tunnel handling failed for session {}: {}", session_id_clone, e);
-                
+            )
+            .await
+            {
+                error!(
+                    "Tunnel handling failed for session {}: {}",
+                    session_id_clone, e
+                );
+
                 // Remove session on failure
                 let mut sessions_guard = sessions.write().await;
                 sessions_guard.remove(&session_id_clone);
@@ -304,18 +329,23 @@ impl SshTunnelManager {
         duration_minutes: Option<u32>,
         config: Arc<AethericConfig>,
     ) -> Result<()> {
-        info!("Starting tunnel connection handler for session: {}", session_id);
+        info!(
+            "Starting tunnel connection handler for session: {}",
+            session_id
+        );
 
         // Set session timeout
-        let session_timeout = duration_minutes
-            .unwrap_or(config.ssh.session_timeout_minutes)
-            as u64 * 60;
+        let session_timeout =
+            duration_minutes.unwrap_or(config.ssh.session_timeout_minutes) as u64 * 60;
 
         let session_start = SystemTime::now();
 
         // Accept incoming connections
         while let Ok((local_stream, addr)) = listener.accept().await {
-            info!("New SSH tunnel connection from: {} for session: {}", addr, session_id);
+            info!(
+                "New SSH tunnel connection from: {} for session: {}",
+                addr, session_id
+            );
 
             // Check session timeout
             if let Ok(elapsed) = session_start.elapsed() {
@@ -328,8 +358,11 @@ impl SshTunnelManager {
             // Connect to target SSH server
             match TcpStream::connect(format!("{}:{}", target_host, target_port)).await {
                 Ok(target_stream) => {
-                    info!("Connected to SSH server {}:{} for session {}", target_host, target_port, session_id);
-                    
+                    info!(
+                        "Connected to SSH server {}:{} for session {}",
+                        target_host, target_port, session_id
+                    );
+
                     // Clone necessary data for the connection handler
                     let session_id_clone = session_id.clone();
                     let upstream_tx_clone = upstream_tx.clone();
@@ -347,25 +380,35 @@ impl SshTunnelManager {
                             downstream_tx_clone,
                             mqtt_client_clone,
                             gateway_id_clone,
-                        ).await {
+                        )
+                        .await
+                        {
                             error!("Connection handling failed: {}", e);
                         }
                     });
                 }
                 Err(e) => {
-                    error!("Failed to connect to SSH server {}:{}: {}", target_host, target_port, e);
+                    error!(
+                        "Failed to connect to SSH server {}:{}: {}",
+                        target_host, target_port, e
+                    );
                     // Send error response via MQTT
                     let error_topic = format!("ae/{}/ssh/{}/error", gateway_id, session_id);
                     let error_message = serde_json::json!({
                         "session_id": session_id,
                         "error": format!("Failed to connect to SSH server: {}", e)
                     });
-                    let _ = mqtt_client.publish_raw(&error_topic, &error_message.to_string()).await;
+                    let _ = mqtt_client
+                        .publish_raw(&error_topic, &error_message.to_string())
+                        .await;
                 }
             }
         }
 
-        info!("Tunnel connection handler stopped for session: {}", session_id);
+        info!(
+            "Tunnel connection handler stopped for session: {}",
+            session_id
+        );
         Ok(())
     }
 
@@ -392,21 +435,27 @@ impl SshTunnelManager {
                     Ok(0) => break, // Connection closed
                     Ok(n) => {
                         let data = buffer[..n].to_vec();
-                        
+
                         // Send data via MQTT
-                        let topic = format!("ae/{}/ssh/{}/data/up", upstream_gateway, upstream_session_id);
+                        let topic = format!(
+                            "ae/{}/ssh/{}/data/up",
+                            upstream_gateway, upstream_session_id
+                        );
                         let data_b64 = general_purpose::STANDARD.encode(&data);
                         let message = serde_json::json!({
                             "session_id": upstream_session_id,
                             "data": data_b64,
                             "direction": "up"
                         });
-                        
-                        if let Err(e) = upstream_mqtt.publish_raw(&topic, &message.to_string()).await {
+
+                        if let Err(e) = upstream_mqtt
+                            .publish_raw(&topic, &message.to_string())
+                            .await
+                        {
                             error!("Failed to publish upstream data: {}", e);
                             break;
                         }
-                        
+
                         // Also forward directly to target
                         if let Err(e) = target_write.write_all(&data).await {
                             error!("Failed to write to target stream: {}", e);
@@ -432,21 +481,27 @@ impl SshTunnelManager {
                     Ok(0) => break, // Connection closed
                     Ok(n) => {
                         let data = buffer[..n].to_vec();
-                        
+
                         // Send data via MQTT
-                        let topic = format!("ae/{}/ssh/{}/data/down", downstream_gateway, downstream_session_id);
+                        let topic = format!(
+                            "ae/{}/ssh/{}/data/down",
+                            downstream_gateway, downstream_session_id
+                        );
                         let data_b64 = general_purpose::STANDARD.encode(&data);
                         let message = serde_json::json!({
                             "session_id": downstream_session_id,
                             "data": data_b64,
                             "direction": "down"
                         });
-                        
-                        if let Err(e) = downstream_mqtt.publish_raw(&topic, &message.to_string()).await {
+
+                        if let Err(e) = downstream_mqtt
+                            .publish_raw(&topic, &message.to_string())
+                            .await
+                        {
                             error!("Failed to publish downstream data: {}", e);
                             break;
                         }
-                        
+
                         // Also forward directly to local client
                         if let Err(e) = local_write.write_all(&data).await {
                             error!("Error writing to local stream: {}", e);
@@ -471,12 +526,18 @@ impl SshTunnelManager {
             }
         }
 
-        info!("Connection streams handler completed for session: {}", session_id);
+        info!(
+            "Connection streams handler completed for session: {}",
+            session_id
+        );
         Ok(())
     }
 
     async fn handle_disconnect_command(&self, session_id: String) -> Result<SshResponse> {
-        info!("Handling SSH disconnect command for session: {}", session_id);
+        info!(
+            "Handling SSH disconnect command for session: {}",
+            session_id
+        );
 
         {
             let mut sessions = self.sessions.write().await;
@@ -490,7 +551,10 @@ impl SshTunnelManager {
                     local_port: None,
                 })
             } else {
-                warn!("Attempted to disconnect non-existent session: {}", session_id);
+                warn!(
+                    "Attempted to disconnect non-existent session: {}",
+                    session_id
+                );
                 Ok(SshResponse {
                     session_id,
                     status: SshSessionStatus::Failed,
@@ -508,19 +572,26 @@ impl SshTunnelManager {
         data: String,
         direction: SshDataDirection,
     ) -> Result<SshResponse> {
-        debug!("Handling SSH data command for session: {} direction: {:?}", session_id, direction);
+        debug!(
+            "Handling SSH data command for session: {} direction: {:?}",
+            session_id, direction
+        );
 
         let sessions = self.sessions.read().await;
         if let Some(active_session) = sessions.get(&session_id) {
             // Decode base64 data
-            let decoded_data = general_purpose::STANDARD.decode(&data)
+            let decoded_data = general_purpose::STANDARD
+                .decode(&data)
                 .map_err(|e| anyhow!("Failed to decode base64 data: {}", e))?;
 
             match direction {
                 SshDataDirection::Up => {
                     // Send data upstream (client to server)
                     if let Err(e) = active_session.upstream_tx.send(decoded_data) {
-                        error!("Failed to send upstream data for session {}: {}", session_id, e);
+                        error!(
+                            "Failed to send upstream data for session {}: {}",
+                            session_id, e
+                        );
                         return Ok(SshResponse {
                             session_id,
                             status: SshSessionStatus::Failed,
@@ -596,32 +667,36 @@ impl SshTunnelManager {
     async fn start_session_cleanup_task(&self) {
         let sessions = self.sessions.clone();
         let config = self.config.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60)); // Check every minute
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let now = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs();
-                
+
                 let timeout_threshold = config.ssh.session_timeout_minutes as u64 * 60;
-                
+
                 let mut sessions_guard = sessions.write().await;
                 let mut sessions_to_remove = Vec::new();
-                
+
                 for (session_id, active_session) in sessions_guard.iter() {
-                    let inactive_duration = now.saturating_sub(active_session.session.last_activity);
-                    
+                    let inactive_duration =
+                        now.saturating_sub(active_session.session.last_activity);
+
                     if inactive_duration > timeout_threshold {
-                        info!("SSH session {} timed out (inactive for {} seconds)", session_id, inactive_duration);
+                        info!(
+                            "SSH session {} timed out (inactive for {} seconds)",
+                            session_id, inactive_duration
+                        );
                         sessions_to_remove.push(session_id.clone());
                     }
                 }
-                
+
                 for session_id in sessions_to_remove {
                     sessions_guard.remove(&session_id);
                     info!("Removed timed out SSH session: {}", session_id);

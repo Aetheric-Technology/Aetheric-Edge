@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AethericConfig {
@@ -65,7 +65,8 @@ pub struct SshConfig {
 impl Default for AethericConfig {
     fn default() -> Self {
         // Default to user home directory - no sudo required!
-        let (_aetheric_dir, cert_dir, plugins_dir, temp_dir) = if let Some(home) = dirs::home_dir() {
+        let (_aetheric_dir, cert_dir, plugins_dir, temp_dir) = if let Some(home) = dirs::home_dir()
+        {
             let aetheric_home = home.join(".aetheric");
             (
                 aetheric_home.clone(),
@@ -77,10 +78,11 @@ impl Default for AethericConfig {
             // Fallback to system directories only if home directory is not available
             // This is a special case (e.g., running as system service without home)
             tracing::warn!("Home directory not available, falling back to system directories");
-            
+
             #[cfg(windows)]
             let (config_dir, cert_dir, plugin_dir, temp_dir) = {
-                let program_data = std::env::var("PROGRAMDATA").unwrap_or_else(|_| "C:\\ProgramData".to_string());
+                let program_data =
+                    std::env::var("PROGRAMDATA").unwrap_or_else(|_| "C:\\ProgramData".to_string());
                 let base = PathBuf::from(program_data).join("AethericEdge");
                 (
                     base.clone(),
@@ -89,7 +91,7 @@ impl Default for AethericConfig {
                     std::env::temp_dir().join("aetheric-edge"),
                 )
             };
-            
+
             #[cfg(target_os = "macos")]
             let (config_dir, cert_dir, plugin_dir, temp_dir) = (
                 PathBuf::from("/Library/Application Support/AethericEdge"),
@@ -97,7 +99,7 @@ impl Default for AethericConfig {
                 PathBuf::from("/usr/local/lib/aetheric-edge/plugins"),
                 PathBuf::from("/tmp/aetheric-edge"),
             );
-            
+
             #[cfg(target_os = "linux")]
             let (config_dir, cert_dir, plugin_dir, temp_dir) = (
                 PathBuf::from("/etc/aetheric-edge"),
@@ -105,7 +107,7 @@ impl Default for AethericConfig {
                 PathBuf::from("/opt/aetheric-edge/plugins"),
                 PathBuf::from("/tmp/aetheric-edge"),
             );
-            
+
             (config_dir, cert_dir, plugin_dir, temp_dir)
         };
 
@@ -154,7 +156,10 @@ impl Default for AethericConfig {
 impl AethericConfig {
     pub fn load_from_file(path: &PathBuf) -> Result<Self> {
         if !path.exists() {
-            tracing::info!("Config file not found at {:?}, creating default config", path);
+            tracing::info!(
+                "Config file not found at {:?}, creating default config",
+                path
+            );
             let default_config = Self::default();
             default_config.save_to_file(path)?;
             return Ok(default_config);
@@ -176,8 +181,7 @@ impl AethericConfig {
                 .with_context(|| format!("Failed to create config directory: {:?}", parent))?;
         }
 
-        let content = toml::to_string_pretty(self)
-            .context("Failed to serialize config to TOML")?;
+        let content = toml::to_string_pretty(self).context("Failed to serialize config to TOML")?;
 
         fs::write(path, content)
             .with_context(|| format!("Failed to write config file: {:?}", path))?;
@@ -194,8 +198,15 @@ impl AethericConfig {
             anyhow::bail!("Gateway ID cannot be longer than 64 characters");
         }
 
-        if !self.gateway.id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
-            anyhow::bail!("Gateway ID can only contain alphanumeric characters, hyphens, and underscores");
+        if !self
+            .gateway
+            .id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
+            anyhow::bail!(
+                "Gateway ID can only contain alphanumeric characters, hyphens, and underscores"
+            );
         }
 
         if self.mqtt.host.is_empty() {
@@ -222,13 +233,16 @@ impl AethericConfig {
             if primary_config.exists() {
                 return primary_config;
             }
-            
+
             // Secondary: ~/.config/aetheric-edge/aetheric.toml (XDG standard)
-            let xdg_config = home.join(".config").join("aetheric-edge").join("aetheric.toml");
+            let xdg_config = home
+                .join(".config")
+                .join("aetheric-edge")
+                .join("aetheric.toml");
             if xdg_config.exists() {
                 return xdg_config;
             }
-            
+
             // Default to primary location for new installations
             primary_config
         } else {

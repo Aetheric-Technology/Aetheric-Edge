@@ -8,7 +8,6 @@ use base64::{engine::general_purpose, Engine};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tempfile::TempDir;
-use tokio::fs;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -65,7 +64,9 @@ async fn create_test_mqtt_client() -> (MqttClient, mpsc::UnboundedReceiver<Comma
         1883,
         "test-gateway-plugin-install".to_string(),
         command_sender,
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
     (mqtt_client, command_receiver)
 }
 
@@ -130,12 +131,22 @@ async fn test_binary_plugin_installation_via_mqtt() {
     println!("Binary plugin installation response: {:?}", response);
 
     // Verify installation response
-    assert_eq!(response.status, CommandStatus::Success, "Binary plugin installation should succeed");
-    assert!(response.message.contains("successfully"), "Response should indicate success");
+    assert_eq!(
+        response.status,
+        CommandStatus::Success,
+        "Binary plugin installation should succeed"
+    );
+    assert!(
+        response.message.contains("successfully"),
+        "Response should indicate success"
+    );
 
     // Verify plugin is installed (check if plugin directory exists)
     let plugin_path = config.plugins.install_dir.join("test-binary-plugin");
-    assert!(plugin_path.exists(), "Plugin directory should exist after installation");
+    assert!(
+        plugin_path.exists(),
+        "Plugin directory should exist after installation"
+    );
 
     // Verify plugin binary exists and is executable
     let binary_path = plugin_path.join("plugin.sh"); // Shell script is named plugin.sh
@@ -205,11 +216,9 @@ async fn test_docker_plugin_installation_via_mqtt() {
                 description: Some("Test Docker plugin".to_string()),
                 plugin_type: PluginType::Docker,
                 auto_start: false, // Don't auto-start in tests
-                environment: HashMap::from([
-                    ("TEST_ENV".to_string(), "test_value".to_string()),
-                ]),
+                environment: HashMap::from([("TEST_ENV".to_string(), "test_value".to_string())]),
                 dependencies: vec![],
-                ports: vec![8080], // Test port mapping
+                ports: vec![8080],                      // Test port mapping
                 volumes: vec!["/tmp:/tmp".to_string()], // Test volume mapping
                 command_args: vec![
                     "sh".to_string(),
@@ -229,14 +238,17 @@ async fn test_docker_plugin_installation_via_mqtt() {
 
     // Note: Docker installation might fail in test environment without Docker daemon
     // But we can verify the command processing works correctly
-    
+
     match response.status {
         CommandStatus::Success => {
             println!("Docker plugin installation succeeded");
-            
+
             // Verify plugin directory exists
             let plugin_path = config.plugins.install_dir.join("test-docker-plugin");
-            assert!(plugin_path.exists(), "Plugin directory should exist after installation");
+            assert!(
+                plugin_path.exists(),
+                "Plugin directory should exist after installation"
+            );
 
             // Test getting plugin status
             let status_command = CommandMessage {
@@ -280,7 +292,8 @@ async fn test_chunked_binary_installation_via_mqtt() {
     let command_handler = create_test_command_handler(config.clone()).await;
 
     // Create larger test binary for chunked transfer
-    let large_script = format!(r#"#!/bin/bash
+    let large_script = format!(
+        r#"#!/bin/bash
 echo "Large test plugin started"
 # Add some bulk to make it larger
 {}
@@ -288,7 +301,9 @@ while true; do
     echo "Large plugin is running... $(date)"
     sleep 30
 done
-"#, "# This is padding to make the file larger\n".repeat(100));
+"#,
+        "# This is padding to make the file larger\n".repeat(100)
+    );
 
     let binary_data = large_script.as_bytes();
     let base64_data = general_purpose::STANDARD.encode(binary_data);
@@ -344,14 +359,26 @@ done
 
         if index < chunks.len() - 1 {
             // For intermediate chunks, expect success but not complete installation
-            assert_eq!(response.status, CommandStatus::Success, "Chunk {} should be accepted", index);
+            assert_eq!(
+                response.status,
+                CommandStatus::Success,
+                "Chunk {} should be accepted",
+                index
+            );
         } else {
             // For final chunk, expect complete installation
-            assert_eq!(response.status, CommandStatus::Success, "Final chunk should complete installation");
-            
+            assert_eq!(
+                response.status,
+                CommandStatus::Success,
+                "Final chunk should complete installation"
+            );
+
             // Verify plugin is installed
             let plugin_path = config.plugins.install_dir.join("test-chunked-plugin");
-            assert!(plugin_path.exists(), "Chunked plugin directory should exist after final chunk");
+            assert!(
+                plugin_path.exists(),
+                "Chunked plugin directory should exist after final chunk"
+            );
         }
     }
 
@@ -403,7 +430,11 @@ async fn test_plugin_installation_error_cases() {
 
     let response = command_handler.handle_command(invalid_base64_command).await;
     println!("Invalid base64 response: {:?}", response);
-    assert_eq!(response.status, CommandStatus::Failed, "Invalid base64 should fail");
+    assert_eq!(
+        response.status,
+        CommandStatus::Failed,
+        "Invalid base64 should fail"
+    );
 
     // Test 2: Empty plugin name
     let empty_name_command = CommandMessage {
@@ -423,7 +454,11 @@ async fn test_plugin_installation_error_cases() {
 
     let response = command_handler.handle_command(empty_name_command).await;
     println!("Empty name response: {:?}", response);
-    assert_eq!(response.status, CommandStatus::Failed, "Empty plugin name should fail");
+    assert_eq!(
+        response.status,
+        CommandStatus::Failed,
+        "Empty plugin name should fail"
+    );
 
     // Test 3: Invalid Docker image
     let invalid_docker_command = CommandMessage {
@@ -455,7 +490,11 @@ async fn test_plugin_installation_error_cases() {
     let response = command_handler.handle_command(invalid_docker_command).await;
     println!("Invalid Docker image response: {:?}", response);
     // This should fail, but might be due to Docker not being available rather than invalid image
-    assert_eq!(response.status, CommandStatus::Failed, "Invalid Docker image should fail");
+    assert_eq!(
+        response.status,
+        CommandStatus::Failed,
+        "Invalid Docker image should fail"
+    );
 }
 
 #[tokio::test]

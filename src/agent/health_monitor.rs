@@ -28,7 +28,9 @@ impl HealthMonitor {
     pub async fn run(&mut self, mqtt_client: MqttClient) -> Result<()> {
         info!("Starting comprehensive health monitor");
 
-        let mut health_interval = interval(Duration::from_secs(self.config.health.report_interval_seconds));
+        let mut health_interval = interval(Duration::from_secs(
+            self.config.health.report_interval_seconds,
+        ));
         let mut heartbeat_interval = interval(Duration::from_secs(15)); // Heartbeat every 15 seconds
         let mut plugin_health_interval = interval(Duration::from_secs(60)); // Plugin health check every minute
 
@@ -75,7 +77,7 @@ impl HealthMonitor {
         // Check various system health indicators
         let memory_usage = self.get_memory_usage_mb().await;
         let cpu_usage = self.get_cpu_usage_percent().await;
-        
+
         // Simple health determination logic
         if memory_usage > 8192 || cpu_usage > 90.0 {
             HealthStatus::Degraded
@@ -94,7 +96,7 @@ impl HealthMonitor {
     async fn get_memory_usage_mb(&self) -> u64 {
         let mut system = System::new_all();
         system.refresh_memory();
-        
+
         let used_memory = system.used_memory();
         used_memory / 1024 / 1024 // Convert bytes to MB
     }
@@ -102,11 +104,11 @@ impl HealthMonitor {
     async fn get_cpu_usage_percent(&self) -> f32 {
         let mut system = System::new_all();
         system.refresh_cpu(); // Refresh once
-        
+
         // Wait a bit for accurate measurement
         tokio::time::sleep(Duration::from_millis(200)).await;
         system.refresh_cpu(); // Refresh again for delta calculation
-        
+
         // Get global CPU usage
         system.global_cpu_info().cpu_usage()
     }
@@ -117,8 +119,14 @@ impl HealthMonitor {
             "Aetheric Edge Agent started".to_string(),
             EventSeverity::Info,
         )
-        .with_metadata("gateway_id".to_string(), serde_json::json!(self.config.gateway.id))
-        .with_metadata("version".to_string(), serde_json::json!(env!("CARGO_PKG_VERSION")));
+        .with_metadata(
+            "gateway_id".to_string(),
+            serde_json::json!(self.config.gateway.id),
+        )
+        .with_metadata(
+            "version".to_string(),
+            serde_json::json!(env!("CARGO_PKG_VERSION")),
+        );
 
         mqtt_client.publish_event(&event).await?;
         info!("Startup event published");
@@ -132,8 +140,14 @@ impl HealthMonitor {
             "Aetheric Edge Agent shutting down".to_string(),
             EventSeverity::Info,
         )
-        .with_metadata("gateway_id".to_string(), serde_json::json!(self.config.gateway.id))
-        .with_metadata("uptime_seconds".to_string(), serde_json::json!(self.get_uptime_seconds()));
+        .with_metadata(
+            "gateway_id".to_string(),
+            serde_json::json!(self.config.gateway.id),
+        )
+        .with_metadata(
+            "uptime_seconds".to_string(),
+            serde_json::json!(self.get_uptime_seconds()),
+        );
 
         mqtt_client.publish_event(&event).await?;
         info!("Shutdown event published");
@@ -154,8 +168,10 @@ impl HealthMonitor {
 
         // Publish to heartbeat topic
         let topic = format!("ae/{}/heartbeat", self.config.gateway.id);
-        mqtt_client.publish_raw(&topic, &heartbeat_message.to_string()).await?;
-        
+        mqtt_client
+            .publish_raw(&topic, &heartbeat_message.to_string())
+            .await?;
+
         debug!("Heartbeat sent successfully");
         Ok(())
     }
@@ -177,19 +193,36 @@ impl HealthMonitor {
                 });
 
                 let topic = format!("ae/{}/plugins/health", self.config.gateway.id);
-                mqtt_client.publish_raw(&topic, &plugin_health_message.to_string()).await?;
+                mqtt_client
+                    .publish_raw(&topic, &plugin_health_message.to_string())
+                    .await?;
 
                 // Report any critical plugin issues
                 for plugin_health in &plugin_health_statuses {
-                    if matches!(plugin_health.status, crate::agent::plugin_manager::PluginStatus::Failed) {
+                    if matches!(
+                        plugin_health.status,
+                        crate::agent::plugin_manager::PluginStatus::Failed
+                    ) {
                         let alert_message = EventMessage::new(
                             "plugin_health".to_string(),
-                            format!("Plugin {} has failed and exceeded maximum restart attempts", plugin_health.plugin_name),
+                            format!(
+                                "Plugin {} has failed and exceeded maximum restart attempts",
+                                plugin_health.plugin_name
+                            ),
                             EventSeverity::Critical,
                         )
-                        .with_metadata("plugin_name".to_string(), serde_json::json!(plugin_health.plugin_name))
-                        .with_metadata("restart_count".to_string(), serde_json::json!(plugin_health.restart_count))
-                        .with_metadata("health_failures".to_string(), serde_json::json!(plugin_health.health_check_failures));
+                        .with_metadata(
+                            "plugin_name".to_string(),
+                            serde_json::json!(plugin_health.plugin_name),
+                        )
+                        .with_metadata(
+                            "restart_count".to_string(),
+                            serde_json::json!(plugin_health.restart_count),
+                        )
+                        .with_metadata(
+                            "health_failures".to_string(),
+                            serde_json::json!(plugin_health.health_check_failures),
+                        );
 
                         if let Err(e) = mqtt_client.publish_event(&alert_message).await {
                             warn!("Failed to publish plugin health alert: {}", e);
@@ -197,12 +230,24 @@ impl HealthMonitor {
                     } else if plugin_health.restart_count > 0 {
                         let warning_message = EventMessage::new(
                             "plugin_health".to_string(),
-                            format!("Plugin {} has been restarted {} times", plugin_health.plugin_name, plugin_health.restart_count),
+                            format!(
+                                "Plugin {} has been restarted {} times",
+                                plugin_health.plugin_name, plugin_health.restart_count
+                            ),
                             EventSeverity::Warning,
                         )
-                        .with_metadata("plugin_name".to_string(), serde_json::json!(plugin_health.plugin_name))
-                        .with_metadata("restart_count".to_string(), serde_json::json!(plugin_health.restart_count))
-                        .with_metadata("status".to_string(), serde_json::json!(plugin_health.status));
+                        .with_metadata(
+                            "plugin_name".to_string(),
+                            serde_json::json!(plugin_health.plugin_name),
+                        )
+                        .with_metadata(
+                            "restart_count".to_string(),
+                            serde_json::json!(plugin_health.restart_count),
+                        )
+                        .with_metadata(
+                            "status".to_string(),
+                            serde_json::json!(plugin_health.status),
+                        );
 
                         if let Err(e) = mqtt_client.publish_event(&warning_message).await {
                             warn!("Failed to publish plugin restart warning: {}", e);
@@ -210,11 +255,14 @@ impl HealthMonitor {
                     }
                 }
 
-                debug!("Plugin health monitoring completed - {} plugins checked", plugin_health_statuses.len());
+                debug!(
+                    "Plugin health monitoring completed - {} plugins checked",
+                    plugin_health_statuses.len()
+                );
             }
             Err(e) => {
                 error!("Failed to monitor plugin health: {}", e);
-                
+
                 let error_message = EventMessage::new(
                     "plugin_health".to_string(),
                     format!("Plugin health monitoring failed: {}", e),
