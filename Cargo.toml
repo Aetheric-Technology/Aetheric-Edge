@@ -42,8 +42,8 @@ tokio-util = "0.7"
 reqwest = { version = "0.11", default-features = false, features = ["json", "stream", "rustls-tls"] }
 # File operations
 tempfile = "3.0"
-# Docker API with SSL disabled for cross-compilation (optional feature)
-bollard = { version = "0.15", default-features = false }
+# Docker API - disabled on Windows due to compatibility issues  
+bollard = { version = "0.15", default-features = false, features = ["time"], optional = true }
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }
 # Directory operations
@@ -68,9 +68,13 @@ nix = "0.27"
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.6"
-winapi = { version = "0.3", features = ["winuser", "winsvc"] }
+winapi = { version = "0.3", features = ["winuser", "winsvc", "winerror", "handleapi", "processthreadsapi", "winbase"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile = "3.0"
 rand = "0.8"
+
+[features]
+default = ["docker"]
+docker = ["bollard"]
