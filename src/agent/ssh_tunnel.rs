@@ -74,6 +74,7 @@ pub struct SshResponse {
 struct ActiveSession {
     session: SshSession,
     upstream_tx: mpsc::UnboundedSender<Vec<u8>>,
+    #[allow(dead_code)]
     downstream_rx: mpsc::UnboundedReceiver<Vec<u8>>,
     _handle: tokio::task::JoinHandle<()>,
 }

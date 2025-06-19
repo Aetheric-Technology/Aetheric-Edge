@@ -1,6 +1,5 @@
 use aetheric_edge::agent::plugin_manager::{PluginManager, PluginSource, PluginConfig, PluginType};
 use aetheric_edge::config::{AethericConfig, PluginsConfig};
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::collections::HashMap;
 use base64::{engine::general_purpose, Engine};
@@ -91,7 +90,7 @@ done
         dependencies: vec![],
         ports: vec![8080],
         volumes: vec![],
-        command_args: vec!["--config", "/etc/collector.conf"],
+        command_args: vec!["--config".to_string(), "/etc/collector.conf".to_string()],
     };
     
     // This would install from a real URL in production
@@ -122,7 +121,7 @@ done
         dependencies: vec![],
         ports: vec![6379],
         volumes: vec!["redis-data:/data".to_string()],
-        command_args: vec!["redis-server", "--appendonly", "yes"],
+        command_args: vec!["redis-server".to_string(), "--appendonly".to_string(), "yes".to_string()],
     };
     
     // This would pull and install a Docker container

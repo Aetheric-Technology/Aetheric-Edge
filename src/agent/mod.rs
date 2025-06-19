@@ -16,6 +16,7 @@ pub use plugin_manager::PluginManager;
 pub use ssh_tunnel::{SshTunnelManager, SshCommand, SshResponse};
 
 pub struct Agent {
+    #[allow(dead_code)]
     config: Arc<AethericConfig>,
     mqtt_client: MqttClient,
     command_handler: CommandHandler,

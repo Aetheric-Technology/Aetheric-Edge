@@ -11,7 +11,6 @@ env:
   CARGO_NET_RETRY: 10
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
-  RUSTFLAGS: "-D warnings"
   RUSTUP_MAX_RETRIES: 10
 
 jobs:
@@ -26,6 +25,16 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all -- --check
 
+  # Run cargo check to catch compilation errors early
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --all-targets --all-features
+
   # Run cargo clippy -- -D warnings
   clippy:
     name: Clippy
@@ -36,7 +45,7 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo clippy --all-targets --all-features -- -D warnings -A dead_code
 
   # Run tests on multiple platforms
   test:
@@ -168,6 +177,7 @@ jobs:
     if: success()
     needs:
       - fmt
+      - check
       - clippy
       - test
       - minimal

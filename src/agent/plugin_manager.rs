@@ -122,9 +122,11 @@ pub struct PluginManager {
 }
 
 struct ChunkedTransfer {
+    #[allow(dead_code)]
     total_chunks: u32,
     received_chunks: HashMap<u32, Vec<u8>>,
     checksum: Option<String>,
+    #[allow(dead_code)]
     plugin_name: String,
     plugin_config: PluginConfig,
 }

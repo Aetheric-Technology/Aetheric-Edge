@@ -113,6 +113,7 @@ impl CommandHandler {
         Ok(health_data)
     }
 
+    #[allow(dead_code)]
     async fn handle_install_command(
         &self,
         plugin_name: &str,
@@ -133,6 +134,7 @@ impl CommandHandler {
         }
     }
 
+    #[allow(dead_code)]
     async fn handle_remove_command(&self, plugin_name: &str) -> Result<serde_json::Value> {
         info!("Removing plugin: {}", plugin_name);
 
@@ -483,6 +485,7 @@ impl CommandHandler {
         self.plugin_manager.set_plugin_maintenance(plugin_name, maintenance_mode, reason).await
     }
 
+    #[allow(dead_code)]
     async fn install_from_url(
         &self,
         plugin_name: &str,
@@ -531,6 +534,7 @@ impl CommandHandler {
         }))
     }
 
+    #[allow(dead_code)]
     async fn install_docker_container(
         &self,
         plugin_name: &str,
@@ -580,6 +584,7 @@ impl CommandHandler {
         }))
     }
 
+    #[allow(dead_code)]
     async fn install_from_local_path(
         &self,
         plugin_name: &str,

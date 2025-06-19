@@ -123,6 +123,8 @@ jobs:
       # Native compilation for same-architecture targets
       - name: Build native
         if: ${{ !matrix.platform.use_cross }}
+        env:
+          RUSTFLAGS: "-A dead_code"
         run: cargo build --locked --release --target ${{ matrix.platform.target }}
       
       # Strip binaries to reduce size (for native builds)
