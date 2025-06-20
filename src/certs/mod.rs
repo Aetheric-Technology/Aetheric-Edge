@@ -70,7 +70,8 @@ impl CertificateManager {
         if let Ok(cert_dir) = std::env::var("AETHERIC_CERT_DIR") {
             PathBuf::from(cert_dir)
         } else if let Some(home) = dirs::home_dir() {
-            home.join(".config").join("aetheric-edge").join("certs")
+            // Use ~/.aetheric/certs to match the configuration system
+            home.join(".aetheric").join("certs")
         } else {
             PathBuf::from("/etc/aetheric-edge/certs")
         }
