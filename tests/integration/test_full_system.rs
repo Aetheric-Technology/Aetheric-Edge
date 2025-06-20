@@ -236,9 +236,11 @@ async fn test_plugin_chunked_transfer_complete_flow() {
 
     // Split into 3 chunks
     let chunk_size = base64_data.len() / 3;
-    let chunks = [&base64_data[..chunk_size],
+    let chunks = [
+        &base64_data[..chunk_size],
         &base64_data[chunk_size..chunk_size * 2],
-        &base64_data[chunk_size * 2..]];
+        &base64_data[chunk_size * 2..],
+    ];
 
     let plugin_config = PluginConfig {
         name: "integration-chunked-plugin".to_string(),

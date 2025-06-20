@@ -34,8 +34,7 @@ fn set_secure_file_permissions(path: &std::path::Path, is_private_key: bool) -> 
     Ok(())
 }
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub enum KeyAlgorithm {
     #[default]
     EcdsaP256,
@@ -44,7 +43,6 @@ pub enum KeyAlgorithm {
     Rsa3072,
     Rsa4096,
 }
-
 
 pub struct CertificateManager {
     cert_dir: PathBuf,

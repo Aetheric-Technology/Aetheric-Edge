@@ -53,9 +53,7 @@ async fn main() -> Result<()> {
     );
 
     // Determine config file path
-    let config_path = args
-        .config
-        .unwrap_or_else(AethericConfig::get_config_path);
+    let config_path = args.config.unwrap_or_else(AethericConfig::get_config_path);
 
     // Handle config generation
     if args.generate_config {

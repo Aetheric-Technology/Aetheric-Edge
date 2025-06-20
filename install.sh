@@ -355,60 +355,8 @@ EOF
     log_success "Default configuration created with Gateway ID: $GATEWAY_ID"
 }
 
-# Create systemd service for aetheric-agent
-create_systemd_service() {
-    log "Creating systemd service for aetheric-agent..."
-    
-    cat > "$SYSTEMD_DIR/aetheric-agent.service" << EOF
-[Unit]
-Description=Aetheric Edge Agent
-Documentation=https://github.com/your-org/aetheric-edge
-After=network.target mosquitto.service
-Wants=mosquitto.service
-Requires=network.target
-
-[Service]
-Type=simple
-User=$AETHERIC_USER
-Group=$AETHERIC_USER
-ExecStart=$AETHERIC_HOME/bin/aetheric-agent --config $AETHERIC_CONFIG_DIR/aetheric.toml
-ExecReload=/bin/kill -HUP \$MAINPID
-KillMode=process
-Restart=always
-RestartSec=5
-TimeoutStopSec=30
-
-# Security settings
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=$AETHERIC_DATA_DIR $AETHERIC_LOG_DIR $AETHERIC_CERTS_DIR
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-
-# Environment
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
-WorkingDirectory=$AETHERIC_HOME
-
-# Logging
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=aetheric-agent
-
-[Install]
-WantedBy=multi-user.target
-
-EOF
-
-    # Set permissions
-    chmod 644 "$SYSTEMD_DIR/aetheric-agent.service"
-    
-    # Reload systemd
-    systemctl daemon-reload
-    
-    log_success "Systemd service created"
-}
+# Note: systemd service creation is handled by the gateway install script
+# This allows for dynamic user-specific configuration paths
 
 # Create cloud bridge configuration helper
 create_bridge_helper() {
@@ -457,10 +405,8 @@ start_services() {
         exit 1
     fi
     
-    # Enable aetheric-agent (but don't start yet - user might want to configure first)
-    systemctl enable aetheric-agent
-    
-    log_success "Services configured and started"
+    # Note: aetheric-agent service will be created by gateway install script
+    log_success "Mosquitto service configured and started"
 }
 
 # Create CLI wrapper for easy access
@@ -584,7 +530,6 @@ main() {
     install_binaries
     configure_mosquitto
     create_default_config
-    create_systemd_service
     create_bridge_helper
     start_services
     create_cli_wrapper
@@ -599,7 +544,7 @@ main() {
     echo "  • Configuration file: $AETHERIC_CONFIG_DIR/aetheric.toml"
     echo "  • Certificates directory: $AETHERIC_CERTS_DIR"
     echo "  • Local MQTT broker: mosquitto://127.0.0.1:1883"
-    echo "  • Agent service: aetheric-agent (enabled, not started)"
+    echo "  • Agent service: Will be created by gateway install script"
     echo ""
     echo "🚀 Next Steps:"
     echo "  1. Configure your gateway settings:"
@@ -608,8 +553,7 @@ main() {
     echo "  2. Generate device certificates:"
     echo "     aetheric cert create \$(hostname)"
     echo ""
-    echo "  3. Start the agent:"
-    echo "     sudo systemctl start aetheric-agent"
+    echo "  3. Use gateway install script to configure and start agent"
     echo ""
     echo "  4. Check status:"
     echo "     aetheric-cli status"
