@@ -5,14 +5,16 @@ use serde_json::Value;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use tokio::time::{timeout, Duration};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber;
 
 mod certs;
 mod config;
+mod setup;
 
 use certs::CertificateManager;
 use config::AethericConfig;
+use setup::{SetupManager, SetupOptions};
 
 #[derive(Parser)]
 #[command(name = "aetheric")]
@@ -46,6 +48,17 @@ enum Commands {
         #[command(subcommand)]
         action: MqttCommands,
     },
+    /// Setup and configuration wizard
+    Setup {
+        #[arg(short = 'y', long, help = "Run non-interactively with default values")]
+        yes: bool,
+        #[arg(long, help = "Force reconfiguration even if already configured")]
+        force: bool,
+        #[arg(long, help = "Skip service management (useful for testing)")]
+        skip_services: bool,
+    },
+    /// Initialize runtime environment (called by systemd)
+    Init,
 }
 
 #[derive(Subcommand)]
@@ -180,6 +193,12 @@ async fn main() -> Result<()> {
         Commands::Cert { action } => handle_cert_commands(action, cli.cert_dir).await,
         Commands::Config { action } => handle_config_commands(action).await,
         Commands::Mqtt { action } => handle_mqtt_commands(action).await,
+        Commands::Setup {
+            yes,
+            force,
+            skip_services,
+        } => handle_setup_command(yes, force, skip_services).await,
+        Commands::Init => handle_init_command().await,
     };
 
     if let Err(e) = result {
@@ -696,4 +715,40 @@ fn format_received_message(message: &str) -> Result<String> {
         // Not JSON, return as-is
         Ok(message.to_string())
     }
+}
+
+async fn handle_setup_command(yes: bool, force: bool, skip_services: bool) -> Result<()> {
+    let setup_manager = SetupManager::new()?;
+    let options = SetupOptions {
+        interactive: !yes, // Interactive by default, non-interactive if --yes
+        auto: yes,         // Auto mode when --yes is used
+        force,
+        skip_services,
+    };
+
+    setup_manager.run_setup(options).await
+}
+
+async fn handle_init_command() -> Result<()> {
+    // Initialize runtime directories and ensure proper permissions
+    // This is called by systemd before starting the agent
+
+    let dirs = [
+        "/var/lib/aetheric-edge",
+        "/var/lib/aetheric-edge/mosquitto",
+        "/var/log/aetheric-edge",
+        "/etc/aetheric-edge",
+    ];
+
+    for dir in &dirs {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            // Ignore permission errors if directories already exist
+            if e.kind() != std::io::ErrorKind::AlreadyExists {
+                warn!("Failed to create directory {}: {}", dir, e);
+            }
+        }
+    }
+
+    info!("Runtime initialization completed");
+    Ok(())
 }

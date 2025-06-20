@@ -2,6 +2,7 @@ pub mod agent;
 pub mod certs;
 pub mod config;
 pub mod mqtt;
+pub mod setup;
 
 #[cfg(test)]
 mod tests {
@@ -139,5 +140,38 @@ mod tests {
         // Verify plugin directory structure
         let plugin_path = config.plugins.install_dir.join("test-plugin");
         assert!(!plugin_path.exists()); // Should not exist initially
+    }
+
+    #[tokio::test]
+    async fn test_setup_configuration() {
+        let _temp_dir = tempdir().unwrap();
+
+        // Test setup configuration creation
+        let setup_config = setup::SetupConfig::default();
+
+        // Verify default values
+        assert!(!setup_config.gateway_id.is_empty());
+        assert!(setup_config.gateway_id.starts_with("aetheric-"));
+        assert_eq!(setup_config.mqtt_remote_host, "your-cloud-mqtt-broker.com");
+        assert_eq!(setup_config.mqtt_remote_port, 8883);
+        assert_eq!(setup_config.mqtt_local_username, "aetheric");
+        assert!(!setup_config.mqtt_local_password.is_empty());
+        assert_eq!(setup_config.health_report_interval, 60);
+        assert!(setup_config.ssh_enabled);
+        assert_eq!(setup_config.ssh_port, 22);
+        assert!(setup_config.plugins_docker_enabled);
+
+        // Test setup options
+        let options = setup::SetupOptions {
+            interactive: false,
+            auto: true,
+            force: false,
+            skip_services: true,
+        };
+
+        assert!(!options.interactive);
+        assert!(options.auto);
+        assert!(!options.force);
+        assert!(options.skip_services);
     }
 }

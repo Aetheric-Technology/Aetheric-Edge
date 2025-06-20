@@ -139,7 +139,7 @@ impl SshTunnelManager {
                 SshCommand::Data { session_id, .. } => session_id.clone(),
                 SshCommand::Heartbeat { session_id } => session_id.clone(),
             };
-            
+
             return Ok(SshResponse {
                 session_id,
                 status: SshSessionStatus::Failed,
