@@ -363,20 +363,13 @@ create_systemd_service() {
     ACTUAL_USER="${SUDO_USER:-$USER}"
     ACTUAL_HOME=$(eval echo "~$ACTUAL_USER")
     
-    # Stop and disable existing service if it exists
-    if systemctl list-unit-files | grep -q "^aetheric-agent.service"; then
-        log "Stopping and disabling existing aetheric-agent service..."
-        systemctl stop aetheric-agent.service 2>/dev/null || true
-        systemctl disable aetheric-agent.service 2>/dev/null || true
-    fi
+    # Always stop and disable existing service first
+    log "Stopping any existing aetheric-agent service..."
+    systemctl stop aetheric-agent.service 2>/dev/null || true
+    systemctl disable aetheric-agent.service 2>/dev/null || true
     
-    # Remove existing service file if it exists
-    if [[ -f "$SYSTEMD_DIR/aetheric-agent.service" ]]; then
-        log "Removing existing service file..."
-        rm -f "$SYSTEMD_DIR/aetheric-agent.service"
-    fi
-    
-    # Create new service file with correct user and paths
+    # Always create fresh service file (overwrites existing)
+    log "Creating fresh systemd service file..."
     cat > "$SYSTEMD_DIR/aetheric-agent.service" << EOF
 [Unit]
 Description=Aetheric Edge Agent - MQTT-based edge computing agent
@@ -388,11 +381,15 @@ Requires=mosquitto.service
 [Service]
 Type=simple
 User=$ACTUAL_USER
+Group=$ACTUAL_USER
+WorkingDirectory=$ACTUAL_HOME
 RuntimeDirectory=aetheric-agent
 ExecStartPre=+-/usr/local/bin/aetheric init
 ExecStart=/usr/local/bin/aetheric-agent --config $ACTUAL_HOME/.aetheric/config/aetheric.toml
 Restart=on-failure
 RestartSec=5
+Environment="HOME=$ACTUAL_HOME"
+Environment="USER=$ACTUAL_USER"
 
 [Install]
 WantedBy=multi-user.target
@@ -404,7 +401,8 @@ EOF
     # Reload systemd to pick up changes
     systemctl daemon-reload
     
-    log_success "Systemd service created for user: $ACTUAL_USER (replaced existing if present)"
+    log_success "Systemd service created for user: $ACTUAL_USER"
+    log "Service will run as: $ACTUAL_USER with config: $ACTUAL_HOME/.aetheric/config/aetheric.toml"
 }
 
 # Create cloud bridge configuration helper
