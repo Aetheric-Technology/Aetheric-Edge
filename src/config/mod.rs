@@ -254,9 +254,9 @@ impl AethericConfig {
     /// Expands a path that may contain ~ to the user's home directory
     pub fn expand_path(path: &Path) -> PathBuf {
         if let Some(path_str) = path.to_str() {
-            if path_str.starts_with("~/") {
+            if let Some(stripped) = path_str.strip_prefix("~/") {
                 if let Some(home) = dirs::home_dir() {
-                    return home.join(&path_str[2..]);
+                    return home.join(stripped);
                 }
             }
         }

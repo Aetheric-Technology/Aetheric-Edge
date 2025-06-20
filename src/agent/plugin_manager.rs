@@ -284,7 +284,7 @@ impl PluginManager {
         info!("Updating plugin: {}", plugin_name);
 
         // Stop the plugin if running
-        if let Ok(_) = self.stop_plugin(plugin_name).await {
+        if self.stop_plugin(plugin_name).await.is_ok() {
             info!("Stopped plugin {} for update", plugin_name);
         }
 
@@ -331,7 +331,7 @@ impl PluginManager {
             .await?;
 
         // Stop the plugin if running
-        if let Ok(_) = self.stop_plugin(plugin_name).await {
+        if self.stop_plugin(plugin_name).await.is_ok() {
             info!("Stopped plugin {} for removal", plugin_name);
         }
 
