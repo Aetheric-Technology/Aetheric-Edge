@@ -165,7 +165,7 @@ async fn test_plugin_install_command_serialization() {
             let config = config.unwrap();
             assert_eq!(config.name, "test-plugin");
             assert!(matches!(config.plugin_type, PluginType::Binary));
-            assert_eq!(config.auto_start, true);
+            assert!(config.auto_start);
         }
         _ => panic!("Wrong command type"),
     }

@@ -31,6 +31,12 @@ pub struct ReceivedMessage {
     pub payload: Vec<u8>,
 }
 
+impl Default for MockMqttBroker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockMqttBroker {
     pub fn new() -> Self {
         Self {
@@ -168,6 +174,12 @@ impl Clone for TestMqttClient {
     }
 }
 
+impl Default for TestMqttClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TestMqttClient {
     pub fn new() -> Self {
         Self {
@@ -260,11 +272,9 @@ mod tests {
         client.broker.start().await;
 
         // Test various JSON message formats
-        let messages = vec![
-            r#"{"sensor": "temp-001", "value": 25.3}"#,
+        let messages = [r#"{"sensor": "temp-001", "value": 25.3}"#,
             r#"{"measurements": [{"type": "temperature", "value": 20.1}]}"#,
-            r#"{"device": {"id": "dev-001", "status": "online"}}"#,
-        ];
+            r#"{"device": {"id": "dev-001", "status": "online"}}"#];
 
         for (i, msg) in messages.iter().enumerate() {
             let topic = format!("sensor/{}", i);

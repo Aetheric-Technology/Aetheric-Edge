@@ -548,7 +548,7 @@ impl CommandHandler {
         // Schedule a restart after a short delay to allow response to be sent
         tokio::spawn(async {
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-            if let Err(e) = Command::new("sudo").args(&["reboot"]).output() {
+            if let Err(e) = Command::new("sudo").args(["reboot"]).output() {
                 error!("Failed to restart system: {}", e);
             }
         });
@@ -653,7 +653,7 @@ impl CommandHandler {
 
         // Pull the Docker image
         let output = Command::new("docker")
-            .args(&["pull", &full_image])
+            .args(["pull", &full_image])
             .output()?;
 
         if !output.status.success() {

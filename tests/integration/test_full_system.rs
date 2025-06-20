@@ -236,11 +236,9 @@ async fn test_plugin_chunked_transfer_complete_flow() {
 
     // Split into 3 chunks
     let chunk_size = base64_data.len() / 3;
-    let chunks = vec![
-        &base64_data[..chunk_size],
+    let chunks = [&base64_data[..chunk_size],
         &base64_data[chunk_size..chunk_size * 2],
-        &base64_data[chunk_size * 2..],
-    ];
+        &base64_data[chunk_size * 2..]];
 
     let plugin_config = PluginConfig {
         name: "integration-chunked-plugin".to_string(),
@@ -533,10 +531,10 @@ async fn test_configuration_validation() {
     assert_eq!(config.gateway.id, "integration-test-gateway");
     assert_eq!(config.mqtt.host, "localhost");
     assert_eq!(config.mqtt.port, 1883);
-    assert_eq!(config.ssh.enabled, true);
+    assert!(config.ssh.enabled);
     assert_eq!(config.ssh.max_sessions, 3);
-    assert_eq!(config.plugins.docker_enabled, false);
-    assert_eq!(config.plugins.docker_enabled, false);
+    assert!(!config.plugins.docker_enabled);
+    assert!(!config.plugins.docker_enabled);
     assert!(config
         .plugins
         .install_dir

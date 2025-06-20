@@ -3,7 +3,6 @@ use clap::Parser;
 use std::path::PathBuf;
 use tokio::sync::mpsc;
 use tracing::{error, info};
-use tracing_subscriber;
 
 #[cfg(windows)]
 use tokio::signal;
@@ -56,7 +55,7 @@ async fn main() -> Result<()> {
     // Determine config file path
     let config_path = args
         .config
-        .unwrap_or_else(|| AethericConfig::get_config_path());
+        .unwrap_or_else(AethericConfig::get_config_path);
 
     // Handle config generation
     if args.generate_config {

@@ -6,7 +6,6 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use tokio::time::{timeout, Duration};
 use tracing::{error, info, warn};
-use tracing_subscriber;
 
 mod certs;
 mod config;
@@ -210,7 +209,7 @@ async fn main() -> Result<()> {
 }
 
 async fn handle_cert_commands(action: CertCommands, cert_dir: Option<PathBuf>) -> Result<()> {
-    let cert_dir = cert_dir.unwrap_or_else(|| CertificateManager::get_default_cert_dir());
+    let cert_dir = cert_dir.unwrap_or_else(CertificateManager::get_default_cert_dir);
     let cert_manager = CertificateManager::new(cert_dir);
 
     match action {
@@ -291,7 +290,7 @@ async fn handle_cert_commands(action: CertCommands, cert_dir: Option<PathBuf>) -
 async fn handle_config_commands(action: ConfigCommands) -> Result<()> {
     match action {
         ConfigCommands::Init { config } => {
-            let config_path = config.unwrap_or_else(|| AethericConfig::get_config_path());
+            let config_path = config.unwrap_or_else(AethericConfig::get_config_path);
             let default_config = AethericConfig::default();
             default_config
                 .save_to_file(&config_path)
@@ -299,7 +298,7 @@ async fn handle_config_commands(action: ConfigCommands) -> Result<()> {
             info!("Default configuration created at: {:?}", config_path);
         }
         ConfigCommands::Show { config } => {
-            let config_path = config.unwrap_or_else(|| AethericConfig::get_config_path());
+            let config_path = config.unwrap_or_else(AethericConfig::get_config_path);
             let config = AethericConfig::load_from_file(&config_path)
                 .context("Failed to load configuration")?;
 
@@ -308,7 +307,7 @@ async fn handle_config_commands(action: ConfigCommands) -> Result<()> {
             println!("{}", toml_str);
         }
         ConfigCommands::Get { key, config } => {
-            let config_path = config.unwrap_or_else(|| AethericConfig::get_config_path());
+            let config_path = config.unwrap_or_else(AethericConfig::get_config_path);
             let config = AethericConfig::load_from_file(&config_path)
                 .context("Failed to load configuration")?;
 
@@ -316,7 +315,7 @@ async fn handle_config_commands(action: ConfigCommands) -> Result<()> {
             println!("{}", value);
         }
         ConfigCommands::Set { key, value, config } => {
-            let config_path = config.unwrap_or_else(|| AethericConfig::get_config_path());
+            let config_path = config.unwrap_or_else(AethericConfig::get_config_path);
             let mut config = AethericConfig::load_from_file(&config_path)
                 .context("Failed to load configuration")?;
 
@@ -460,7 +459,7 @@ async fn handle_mqtt_publish(
     config_path: Option<PathBuf>,
 ) -> Result<()> {
     // Load configuration
-    let config_path = config_path.unwrap_or_else(|| AethericConfig::get_config_path());
+    let config_path = config_path.unwrap_or_else(AethericConfig::get_config_path);
     let config = AethericConfig::load_from_file(&config_path)
         .context("Failed to load configuration. Run 'aetheric config init' first.")?;
 
@@ -574,7 +573,7 @@ async fn handle_mqtt_subscribe(
     config_path: Option<PathBuf>,
 ) -> Result<()> {
     // Load configuration
-    let config_path = config_path.unwrap_or_else(|| AethericConfig::get_config_path());
+    let config_path = config_path.unwrap_or_else(AethericConfig::get_config_path);
     let config = AethericConfig::load_from_file(&config_path)
         .context("Failed to load configuration. Run 'aetheric config init' first.")?;
 

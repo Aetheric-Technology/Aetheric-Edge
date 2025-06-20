@@ -21,9 +21,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let aetheric_home = home.join(".aetheric");
 
     // Create directories
-    std::fs::create_dir_all(&aetheric_home.join("plugins"))?;
-    std::fs::create_dir_all(&aetheric_home.join("tmp"))?;
-    std::fs::create_dir_all(&aetheric_home.join("certs"))?;
+    std::fs::create_dir_all(aetheric_home.join("plugins"))?;
+    std::fs::create_dir_all(aetheric_home.join("tmp"))?;
+    std::fs::create_dir_all(aetheric_home.join("certs"))?;
 
     println!("📁 Created directories in: {}", aetheric_home.display());
 
@@ -201,13 +201,13 @@ done
             }
         }
 
-        println!("");
+        println!();
         println!("🎉 Success! Plugin installed in user home directory");
         println!("   No sudo required!");
         println!("   You can run it with: {}", binary_path.display());
 
         // Show directory structure
-        println!("");
+        println!();
         println!("📁 Plugin directory structure:");
         if let Ok(entries) = std::fs::read_dir(&plugin_path) {
             for entry in entries {

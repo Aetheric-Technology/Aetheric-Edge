@@ -420,7 +420,7 @@ async fn test_session_port_allocation() {
             if let Some(local_port) = response.local_port {
                 // Port should be in the expected range (10000-10999)
                 assert!(
-                    local_port >= 10000 && local_port < 11000,
+                    (10000..11000).contains(&local_port),
                     "Port {} out of range",
                     local_port
                 );

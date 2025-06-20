@@ -35,7 +35,9 @@ fn set_secure_file_permissions(path: &std::path::Path, is_private_key: bool) -> 
 }
 
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub enum KeyAlgorithm {
+    #[default]
     EcdsaP256,
     EcdsaP384,
     Rsa2048,
@@ -43,12 +45,6 @@ pub enum KeyAlgorithm {
     Rsa4096,
 }
 
-impl Default for KeyAlgorithm {
-    fn default() -> Self {
-        // ECDSA P-256 is a good default for most MQTT brokers
-        KeyAlgorithm::EcdsaP256
-    }
-}
 
 pub struct CertificateManager {
     cert_dir: PathBuf,
@@ -426,9 +422,9 @@ impl CertificateManager {
         let subject = cert.subject().to_string();
         let issuer = cert.issuer().to_string();
         let not_before = DateTime::<Utc>::from_timestamp(cert.validity().not_before.timestamp(), 0)
-            .unwrap_or_else(|| Utc::now());
+            .unwrap_or_else(Utc::now);
         let not_after = DateTime::<Utc>::from_timestamp(cert.validity().not_after.timestamp(), 0)
-            .unwrap_or_else(|| Utc::now());
+            .unwrap_or_else(Utc::now);
 
         let now = Utc::now();
         let is_valid = now >= not_before && now <= not_after;

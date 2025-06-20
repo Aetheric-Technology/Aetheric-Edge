@@ -144,7 +144,7 @@ impl MqttClient {
 
         debug!("Received message on topic: {}", topic);
 
-        if let Some(_command_id) = parse_command_topic(topic, &self.topic_builder.gateway_id()) {
+        if let Some(_command_id) = parse_command_topic(topic, self.topic_builder.gateway_id()) {
             match serde_json::from_slice::<CommandMessage>(payload) {
                 Ok(command) => {
                     info!("Received command: {:?}", command.command);

@@ -109,7 +109,7 @@ async fn test_ssh_connect_command() {
     if matches!(response.status, SshSessionStatus::Connected) {
         assert!(response.local_port.is_some());
         let local_port = response.local_port.unwrap();
-        assert!(local_port >= 10000 && local_port < 11000);
+        assert!((10000..11000).contains(&local_port));
     }
 }
 

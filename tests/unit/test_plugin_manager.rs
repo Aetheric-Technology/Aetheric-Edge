@@ -454,7 +454,7 @@ async fn test_list_plugins_with_installed_plugins() {
     let plugins_list = result.as_object().unwrap();
     assert!(plugins_list.contains_key("plugins"));
     let plugins = plugins_list["plugins"].as_array().unwrap();
-    assert!(plugins.len() > 0);
+    assert!(!plugins.is_empty());
 
     // Find our plugin in the list
     let our_plugin = plugins

@@ -87,7 +87,7 @@ mod tests {
     #[test]
     fn test_mqtt_subcommand_help() {
         let output = Command::new(get_cli_binary_path())
-            .args(&["mqtt", "--help"])
+            .args(["mqtt", "--help"])
             .output()
             .expect("Failed to execute CLI");
 
@@ -103,7 +103,7 @@ mod tests {
     #[test]
     fn test_mqtt_pub_help() {
         let output = Command::new(get_cli_binary_path())
-            .args(&["mqtt", "pub", "--help"])
+            .args(["mqtt", "pub", "--help"])
             .output()
             .expect("Failed to execute CLI");
 
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn test_mqtt_sub_help() {
         let output = Command::new(get_cli_binary_path())
-            .args(&["mqtt", "sub", "--help"])
+            .args(["mqtt", "sub", "--help"])
             .output()
             .expect("Failed to execute CLI");
 
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn test_mqtt_pub_missing_arguments() {
         let output = Command::new(get_cli_binary_path())
-            .args(&["mqtt", "pub"])
+            .args(["mqtt", "pub"])
             .output()
             .expect("Failed to execute CLI");
 
@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn test_mqtt_sub_missing_arguments() {
         let output = Command::new(get_cli_binary_path())
-            .args(&["mqtt", "sub"])
+            .args(["mqtt", "sub"])
             .output()
             .expect("Failed to execute CLI");
 
@@ -165,7 +165,7 @@ mod tests {
         let (_temp_dir, config_path) = create_test_config_file().unwrap();
 
         let output = Command::new(get_cli_binary_path())
-            .args(&[
+            .args([
                 "mqtt",
                 "pub",
                 "--config",
@@ -189,7 +189,7 @@ mod tests {
 
         // This should fail to connect but succeed in parsing arguments
         let output = Command::new(get_cli_binary_path())
-            .args(&[
+            .args([
                 "mqtt",
                 "pub",
                 "--config",
@@ -223,7 +223,7 @@ mod tests {
         let json_message = r#"{"temperature": 23.5, "humidity": 60, "sensor_id": "temp-001"}"#;
 
         let output = Command::new(get_cli_binary_path())
-            .args(&[
+            .args([
                 "mqtt",
                 "pub",
                 "--config",
@@ -253,7 +253,7 @@ mod tests {
         let (_temp_dir, config_path) = create_test_config_file().unwrap();
 
         let output = Command::new(get_cli_binary_path())
-            .args(&[
+            .args([
                 "mqtt",
                 "pub",
                 "--config",
@@ -288,7 +288,7 @@ mod tests {
 
         for qos in &["0", "1", "2"] {
             let output = Command::new(get_cli_binary_path())
-                .args(&[
+                .args([
                     "mqtt",
                     "pub",
                     "--config",
@@ -324,7 +324,7 @@ mod tests {
 
         // First, initialize a config
         let output = Command::new(get_cli_binary_path())
-            .args(&["config", "init", "--config", config_path.to_str().unwrap()])
+            .args(["config", "init", "--config", config_path.to_str().unwrap()])
             .output()
             .expect("Failed to execute CLI");
 
@@ -333,7 +333,7 @@ mod tests {
 
         // Then try to use it with MQTT
         let output = Command::new(get_cli_binary_path())
-            .args(&[
+            .args([
                 "mqtt",
                 "pub",
                 "--config",
@@ -360,7 +360,7 @@ mod tests {
         let (_temp_dir, config_path) = create_test_config_file().unwrap();
 
         let output = Command::new(get_cli_binary_path())
-            .args(&[
+            .args([
                 "mqtt",
                 "pub",
                 "--config",
@@ -390,7 +390,7 @@ mod tests {
         let special_message = "Message with 特殊字符 and émojis 🚀 and \"quotes\"";
 
         let output = Command::new(get_cli_binary_path())
-            .args(&[
+            .args([
                 "mqtt",
                 "pub",
                 "--config",
@@ -431,7 +431,7 @@ mod tests {
 
         for topic in topics {
             let output = Command::new(get_cli_binary_path())
-                .args(&[
+                .args([
                     "mqtt",
                     "pub",
                     "--config",

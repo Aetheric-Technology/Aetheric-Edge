@@ -1,12 +1,15 @@
 use anyhow::{Context, Result};
 use std::fs;
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 use tracing::{info, warn};
 
 use crate::certs::CertificateManager;
 use crate::config::AethericConfig;
+
+mod service_simple;
+pub use service_simple::{MqttBrokerManager, PlatformPaths, ServiceManager};
 
 /// Setup and configuration management
 pub struct SetupManager {
@@ -71,8 +74,8 @@ impl Default for SetupConfig {
 
 impl SetupManager {
     pub fn new() -> Result<Self> {
-        let config_dir = PathBuf::from("/etc/aetheric-edge");
-        let data_dir = PathBuf::from("/var/lib/aetheric-edge");
+        let config_dir = PlatformPaths::config_dir();
+        let data_dir = PlatformPaths::data_dir();
         let cert_manager = CertificateManager::new(data_dir.join("certs"));
 
         Ok(Self {
@@ -158,17 +161,13 @@ impl SetupManager {
     }
 
     fn check_permissions(&self) -> Result<()> {
-        // Check if running as root or with proper permissions
-        let current_user = std::env::var("USER").unwrap_or_default();
-        if current_user != "root" && !Path::new("/etc/aetheric-edge").exists() {
-            return Err(anyhow::anyhow!(
-                "Setup requires root permissions. Please run with sudo."
-            ));
-        }
+        // Home directory setup doesn't require elevated privileges
+        // Only service installation requires elevated privileges
         Ok(())
     }
 
     fn ensure_directories(&self) -> Result<()> {
+        let log_dir = PlatformPaths::log_dir();
         let dirs = [
             &self.config_dir,
             &self.data_dir,
@@ -176,7 +175,7 @@ impl SetupManager {
             &self.data_dir.join("mosquitto"),
             &self.data_dir.join("plugins"),
             &self.data_dir.join("temp"),
-            &PathBuf::from("/var/log/aetheric-edge"),
+            &log_dir,
         ];
 
         for dir in &dirs {
@@ -396,8 +395,8 @@ impl SetupManager {
 
 # Basic settings
 persistence true
-persistence_location /var/lib/aetheric-edge/mosquitto/
-log_dest file /var/log/aetheric-edge/mosquitto.log
+persistence_location {}/mosquitto/
+log_dest file {}/mosquitto.log
 log_type error
 log_type warning  
 log_type notice
@@ -407,7 +406,7 @@ connection_messages true
 
 # Security
 allow_anonymous false
-password_file /etc/aetheric-edge/mosquitto.passwd
+password_file {}/mosquitto.passwd
 
 # Additional listener for Aetheric Edge (if not conflicting)
 listener 1884 localhost
@@ -425,19 +424,21 @@ max_queued_messages 1000
 autosave_interval 1800
 autosave_on_changes false
 persistent_client_expiration 2h
-"#
+"#,
+            self.data_dir.display(),
+            PlatformPaths::log_dir().display(),
+            self.config_dir.display()
         );
 
         fs::write(&aetheric_mosquitto_conf, mosquitto_config)
             .context("Failed to create aetheric mosquitto configuration")?;
 
-        // Add include directive to main mosquitto.conf (following thin-edge.io pattern)
-        self.configure_mosquitto_include().await?;
+        // Note: mosquitto include configuration is now handled by MqttBrokerManager
 
         // Create mosquitto password file
         let passwd_file = self.config_dir.join("mosquitto.passwd");
         let output = Command::new("mosquitto_passwd")
-            .args(&["-c", "-b"])
+            .args(["-c", "-b"])
             .arg(&passwd_file)
             .arg(&config.mqtt_local_username)
             .arg(&config.mqtt_local_password)
@@ -461,62 +462,6 @@ persistent_client_expiration 2h
         }
 
         info!("✅ Local MQTT broker configured");
-        Ok(())
-    }
-
-    async fn configure_mosquitto_include(&self) -> Result<()> {
-        let mosquitto_conf_path = PathBuf::from("/etc/mosquitto/mosquitto.conf");
-
-        if !mosquitto_conf_path.exists() {
-            warn!("Main mosquitto.conf not found - mosquitto may not be installed");
-            return Ok(());
-        }
-
-        let include_line = "include_dir /etc/aetheric-edge/mosquitto-conf";
-
-        // Read existing config
-        let existing_content =
-            fs::read_to_string(&mosquitto_conf_path).context("Failed to read mosquitto.conf")?;
-
-        // Check if our include is already present
-        if existing_content.contains(include_line) {
-            info!("Aetheric include already present in mosquitto.conf");
-            return Ok(());
-        }
-
-        // Add include directive (following thin-edge.io pattern)
-        let updated_content = if existing_content.contains("include_dir") {
-            // Insert before existing include_dir directives
-            let mut lines: Vec<&str> = existing_content.lines().collect();
-            let mut found_include = false;
-            let mut insert_index = 0;
-
-            for (i, line) in lines.iter().enumerate() {
-                if line.trim_start().starts_with("include_dir")
-                    || line.trim_start().starts_with("#include_dir")
-                {
-                    insert_index = i;
-                    found_include = true;
-                    break;
-                }
-            }
-
-            if found_include {
-                lines.insert(insert_index, include_line);
-                lines.join("\n")
-            } else {
-                format!("{}\n{}", existing_content, include_line)
-            }
-        } else {
-            // No existing include_dir, append at end
-            format!("{}\n{}", existing_content, include_line)
-        };
-
-        // Write updated config
-        fs::write(&mosquitto_conf_path, updated_content)
-            .context("Failed to update mosquitto.conf")?;
-
-        info!("✅ Added Aetheric include to mosquitto.conf");
         Ok(())
     }
 
@@ -657,7 +602,7 @@ aetheric ALL = (ALL) NOPASSWD:SETENV: /usr/bin/apt *, /usr/bin/yum *, /usr/bin/d
 
         // Validate sudoers syntax
         let output = Command::new("visudo")
-            .args(&["-c", "-f"])
+            .args(["-c", "-f"])
             .arg(&sudoers_file)
             .output()
             .context("Failed to validate sudoers file")?;
@@ -676,57 +621,110 @@ aetheric ALL = (ALL) NOPASSWD:SETENV: /usr/bin/apt *, /usr/bin/yum *, /usr/bin/d
     }
 
     async fn setup_services(&self) -> Result<()> {
-        info!("Setting up systemd services...");
+        info!("Setting up cross-platform services...");
 
-        // Reload systemd daemon
-        let output = Command::new("systemctl")
-            .args(&["daemon-reload"])
-            .output()
-            .context("Failed to reload systemd daemon")?;
-
-        if !output.status.success() {
-            warn!(
-                "Failed to reload systemd daemon: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
+        // Check if we have privileges for service installation
+        if PlatformPaths::requires_elevated_privileges_for_service() {
+            warn!("Service installation requires elevated privileges, skipping service setup...");
+            info!("To install services later, run 'aetheric setup --install-services' with elevated privileges");
+            return Ok(());
         }
 
-        // Start and enable services
-        let services = ["mosquitto", "aetheric-agent"];
+        // Install Mosquitto first
+        MqttBrokerManager::install_mosquitto().await?;
 
-        for service in &services {
-            // Enable service
+        // Configure Mosquitto to include our configuration
+        MqttBrokerManager::configure_mosquitto_include(&self.config_dir).await?;
+
+        // Install Aetheric Edge Agent service
+        let executable_path = PlatformPaths::executable_path();
+        let config_path = self.config_dir.join("aetheric.toml");
+
+        let service_manager = ServiceManager::new(executable_path, config_path);
+
+        // Install and configure the service
+        service_manager.install_service().await?;
+        service_manager.enable_service().await?;
+
+        // Try to start Mosquitto service (platform-specific)
+        self.start_mosquitto_service().await?;
+
+        // Note: We don't auto-start aetheric-agent as it needs configuration first
+        info!("✅ Cross-platform services configured");
+        Ok(())
+    }
+
+    async fn start_mosquitto_service(&self) -> Result<()> {
+        info!("Starting Mosquitto service...");
+
+        #[cfg(target_os = "linux")]
+        {
             let output = Command::new("systemctl")
-                .args(&["enable", service])
+                .args(["enable", "mosquitto"])
                 .output()
-                .context(format!("Failed to enable {}", service))?;
+                .context("Failed to enable mosquitto service")?;
 
             if !output.status.success() {
                 warn!(
-                    "Failed to enable {}: {}",
-                    service,
+                    "Failed to enable mosquitto: {}",
                     String::from_utf8_lossy(&output.stderr)
                 );
             }
 
-            // Start service
             let output = Command::new("systemctl")
-                .args(&["start", service])
+                .args(["start", "mosquitto"])
                 .output()
-                .context(format!("Failed to start {}", service))?;
+                .context("Failed to start mosquitto service")?;
 
             if !output.status.success() {
                 warn!(
-                    "Failed to start {}: {}",
-                    service,
+                    "Failed to start mosquitto: {}",
                     String::from_utf8_lossy(&output.stderr)
                 );
             } else {
-                info!("✅ Service {} started", service);
+                info!("✅ Mosquitto service started");
             }
         }
 
-        info!("✅ Systemd services configured");
+        #[cfg(target_os = "windows")]
+        {
+            // On Windows, Mosquitto is typically run as a service
+            let output = Command::new("sc")
+                .args(&["start", "mosquitto"])
+                .output()
+                .context("Failed to start mosquitto service")?;
+
+            if !output.status.success() {
+                warn!(
+                    "Failed to start mosquitto service: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                info!(
+                    "You may need to install and configure Mosquitto as a Windows service manually"
+                );
+            } else {
+                info!("✅ Mosquitto service started");
+            }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            // On macOS with Homebrew, use brew services
+            let output = Command::new("brew")
+                .args(&["services", "start", "mosquitto"])
+                .output()
+                .context("Failed to start mosquitto service")?;
+
+            if !output.status.success() {
+                warn!(
+                    "Failed to start mosquitto service: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            } else {
+                info!("✅ Mosquitto service started");
+            }
+        }
+
         Ok(())
     }
 
@@ -746,25 +744,84 @@ aetheric ALL = (ALL) NOPASSWD:SETENV: /usr/bin/apt *, /usr/bin/yum *, /usr/bin/d
             }
         }
 
-        // Check services status
-        let services = ["mosquitto", "aetheric-agent"];
+        // Check Aetheric service status using cross-platform method
+        let executable_path = PlatformPaths::executable_path();
+        let config_path = self.config_dir.join("aetheric.toml");
+        let service_manager = ServiceManager::new(executable_path, config_path);
 
-        for service in &services {
+        match service_manager.service_status().await {
+            Ok(status) => {
+                info!("✅ Aetheric service status: {}", status);
+            }
+            Err(e) => {
+                warn!("⚠️  Could not check Aetheric service status: {}", e);
+            }
+        }
+
+        // Check Mosquitto service status (platform-specific)
+        self.check_mosquitto_status().await?;
+
+        info!("✅ Setup verification completed");
+        Ok(())
+    }
+
+    async fn check_mosquitto_status(&self) -> Result<()> {
+        info!("Checking Mosquitto service status...");
+
+        #[cfg(target_os = "linux")]
+        {
             let output = Command::new("systemctl")
-                .args(&["is-active", service])
+                .args(["is-active", "mosquitto"])
                 .output()
-                .context(format!("Failed to check {} status", service))?;
+                .context("Failed to check mosquitto status")?;
 
             let status_output = String::from_utf8_lossy(&output.stdout);
             let status = status_output.trim();
             if status == "active" {
-                info!("✅ Service {} is running", service);
+                info!("✅ Mosquitto service is running");
             } else {
-                warn!("⚠️  Service {} status: {}", service, status);
+                warn!("⚠️  Mosquitto service status: {}", status);
             }
         }
 
-        info!("✅ Setup verification completed");
+        #[cfg(target_os = "windows")]
+        {
+            let output = Command::new("sc")
+                .args(&["query", "mosquitto"])
+                .output()
+                .context("Failed to check mosquitto status")?;
+
+            if output.status.success() {
+                let status_output = String::from_utf8_lossy(&output.stdout);
+                if status_output.contains("RUNNING") {
+                    info!("✅ Mosquitto service is running");
+                } else {
+                    warn!("⚠️  Mosquitto service is not running");
+                }
+            } else {
+                warn!("⚠️  Could not check Mosquitto service status");
+            }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            let output = Command::new("brew")
+                .args(&["services", "list"])
+                .output()
+                .context("Failed to check mosquitto status")?;
+
+            if output.status.success() {
+                let status_output = String::from_utf8_lossy(&output.stdout);
+                if status_output.contains("mosquitto") && status_output.contains("started") {
+                    info!("✅ Mosquitto service is running");
+                } else {
+                    warn!("⚠️  Mosquitto service is not running");
+                }
+            } else {
+                warn!("⚠️  Could not check Mosquitto service status");
+            }
+        }
+
         Ok(())
     }
 
@@ -774,28 +831,79 @@ aetheric ALL = (ALL) NOPASSWD:SETENV: /usr/bin/apt *, /usr/bin/yum *, /usr/bin/d
         println!();
         println!("Next steps:");
         println!("1. Verify services are running:");
-        println!("   sudo systemctl status aetheric-agent");
-        println!("   sudo systemctl status mosquitto");
+        #[cfg(target_os = "linux")]
+        {
+            println!("   sudo systemctl status aetheric-agent");
+            println!("   sudo systemctl status mosquitto");
+        }
+        #[cfg(target_os = "windows")]
+        {
+            println!("   sc query aetheric-agent");
+            println!("   sc query mosquitto");
+        }
+        #[cfg(target_os = "macos")]
+        {
+            println!("   launchctl print system/com.aetheric.agent");
+            println!("   brew services list | grep mosquitto");
+        }
         println!();
+
         println!("2. Check logs:");
-        println!("   sudo journalctl -u aetheric-agent -f");
-        println!("   sudo journalctl -u mosquitto -f");
+        #[cfg(target_os = "linux")]
+        {
+            println!("   sudo journalctl -u aetheric-agent -f");
+            println!("   sudo journalctl -u mosquitto -f");
+        }
+        #[cfg(target_os = "windows")]
+        {
+            println!("   Check Windows Event Viewer for Aetheric Edge Agent logs");
+            println!("   Check C:\\ProgramData\\AethericEdge\\Logs\\");
+        }
+        #[cfg(target_os = "macos")]
+        {
+            println!("   tail -f /usr/local/var/log/aetheric-edge/stderr.log");
+            println!("   brew services info mosquitto");
+        }
         println!();
+
         println!("3. Test MQTT connectivity:");
         println!(
             "   mosquitto_pub -h localhost -p 1884 -u aetheric -P [password] -t aetheric/test -m 'Hello'"
         );
         println!();
+
         println!("4. Configuration files:");
-        println!("   - Main config: /etc/aetheric-edge/aetheric.toml");
-        println!("   - MQTT config: /etc/aetheric-edge/mosquitto-conf/");
-        println!("   - Data directory: /var/lib/aetheric-edge/");
+        println!(
+            "   - Main config: {}",
+            self.config_dir.join("aetheric.toml").display()
+        );
+        println!(
+            "   - MQTT config: {}",
+            self.config_dir.join("mosquitto-conf").display()
+        );
+        println!("   - Data directory: {}", self.data_dir.display());
         println!();
 
         if !options.skip_services {
             println!("5. Service management:");
-            println!("   sudo systemctl start|stop|restart aetheric-agent");
-            println!("   sudo systemctl start|stop|restart mosquitto");
+            #[cfg(target_os = "linux")]
+            {
+                println!("   sudo systemctl start|stop|restart aetheric-agent");
+                println!("   sudo systemctl start|stop|restart mosquitto");
+            }
+            #[cfg(target_os = "windows")]
+            {
+                println!("   sc start|stop aetheric-agent");
+                println!("   sc start|stop mosquitto");
+                println!("   Or use Services.msc GUI");
+            }
+            #[cfg(target_os = "macos")]
+            {
+                println!(
+                    "   sudo launchctl load|unload /Library/LaunchDaemons/com.aetheric.agent.plist"
+                );
+                println!("   brew services start|stop|restart mosquitto");
+            }
             println!();
         }
 

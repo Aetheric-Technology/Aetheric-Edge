@@ -197,7 +197,7 @@ impl SshTunnelManager {
         // Check session limits
         {
             let sessions = self.sessions.read().await;
-            if sessions.len() >= self.config.ssh.max_sessions as usize {
+            if sessions.len() >= self.config.ssh.max_sessions {
                 return Ok(SshResponse {
                     session_id: session_id.clone(),
                     status: SshSessionStatus::Failed,

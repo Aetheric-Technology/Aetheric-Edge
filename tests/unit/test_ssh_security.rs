@@ -224,10 +224,10 @@ async fn test_ssh_data_validation() {
 
     // Test various data payloads
     let kb_data =
-        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &vec![0u8; 1024]);
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, vec![0u8; 1024]);
     let large_data = base64::Engine::encode(
         &base64::engine::general_purpose::STANDARD,
-        &vec![0u8; 64 * 1024],
+        vec![0u8; 64 * 1024],
     );
     let test_data = vec![
         ("", true),                 // Empty data

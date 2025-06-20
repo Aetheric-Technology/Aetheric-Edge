@@ -462,7 +462,7 @@ async fn test_memory_usage_under_load() {
                     session_id: session_id.clone(),
                     data: base64::Engine::encode(
                         &base64::engine::general_purpose::STANDARD,
-                        &vec![0u8; 1024],
+                        vec![0u8; 1024],
                     ),
                     direction: SshDataDirection::Up,
                 };

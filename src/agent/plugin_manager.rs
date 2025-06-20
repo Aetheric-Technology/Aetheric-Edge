@@ -534,7 +534,7 @@ impl PluginManager {
         // Add repository if provided
         if let Some(repo) = repository {
             let output = Command::new("sudo")
-                .args(&["add-apt-repository", "-y", repo])
+                .args(["add-apt-repository", "-y", repo])
                 .output()?;
 
             if !output.status.success() {
@@ -543,7 +543,7 @@ impl PluginManager {
             }
 
             // Update package list
-            let output = Command::new("sudo").args(&["apt", "update"]).output()?;
+            let output = Command::new("sudo").args(["apt", "update"]).output()?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
@@ -558,7 +558,7 @@ impl PluginManager {
         };
 
         let output = Command::new("sudo")
-            .args(&["apt", "install", "-y", &package_spec])
+            .args(["apt", "install", "-y", &package_spec])
             .output()?;
 
         if !output.status.success() {
@@ -602,7 +602,7 @@ impl PluginManager {
 
         // Pull the Docker image
         let output = Command::new("docker")
-            .args(&["pull", &full_image])
+            .args(["pull", &full_image])
             .output()?;
 
         if !output.status.success() {
@@ -869,7 +869,7 @@ impl PluginManager {
             PluginType::Docker => {
                 // Check if Docker container is running
                 let output = Command::new("docker")
-                    .args(&[
+                    .args([
                         "ps",
                         "--filter",
                         &format!("name={}", plugin_name),
@@ -894,7 +894,7 @@ impl PluginManager {
                 // Check systemd service status
                 let service_name = format!("aetheric-plugin-{}", plugin_name);
                 let output = Command::new("systemctl")
-                    .args(&["is-active", &service_name])
+                    .args(["is-active", &service_name])
                     .output();
 
                 match output {
@@ -912,7 +912,7 @@ impl PluginManager {
             PluginType::AptPackage => {
                 // Check if systemd service is running (for APT packages that install services)
                 let output = Command::new("systemctl")
-                    .args(&["is-active", plugin_name])
+                    .args(["is-active", plugin_name])
                     .output();
 
                 match output {
@@ -1017,7 +1017,7 @@ impl PluginManager {
 
         // Start the service
         let output = Command::new("sudo")
-            .args(&["systemctl", "start", &service_name])
+            .args(["systemctl", "start", &service_name])
             .output()?;
 
         if !output.status.success() {
@@ -1032,7 +1032,7 @@ impl PluginManager {
         // Enable auto-start if configured
         if info.config.auto_start {
             let _ = Command::new("sudo")
-                .args(&["systemctl", "enable", &service_name])
+                .args(["systemctl", "enable", &service_name])
                 .output();
         }
 
@@ -1053,7 +1053,7 @@ impl PluginManager {
         let service_name = format!("aetheric-plugin-{}", plugin_name);
 
         let output = Command::new("sudo")
-            .args(&["systemctl", "stop", &service_name])
+            .args(["systemctl", "stop", &service_name])
             .output()?;
 
         if !output.status.success() {
@@ -1173,7 +1173,7 @@ WantedBy=multi-user.target
 
         // Reload systemd
         let output = Command::new("sudo")
-            .args(&["systemctl", "daemon-reload"])
+            .args(["systemctl", "daemon-reload"])
             .output()?;
 
         if !output.status.success() {
@@ -1191,11 +1191,11 @@ WantedBy=multi-user.target
 
         // Stop and disable the service
         let _ = Command::new("sudo")
-            .args(&["systemctl", "stop", &service_name])
+            .args(["systemctl", "stop", &service_name])
             .output();
 
         let _ = Command::new("sudo")
-            .args(&["systemctl", "disable", &service_name])
+            .args(["systemctl", "disable", &service_name])
             .output();
 
         // Remove service file
@@ -1204,7 +1204,7 @@ WantedBy=multi-user.target
 
             // Reload systemd
             let output = Command::new("sudo")
-                .args(&["systemctl", "daemon-reload"])
+                .args(["systemctl", "daemon-reload"])
                 .output()?;
 
             if !output.status.success() {
@@ -1223,7 +1223,7 @@ WantedBy=multi-user.target
         plugin_name: &str,
         info: &PluginInfo,
     ) -> Result<serde_json::Value> {
-        let _cmd = vec!["run", "-d", "--name", plugin_name];
+        let _cmd = ["run", "-d", "--name", plugin_name];
 
         // Build the arguments as owned strings first
         let mut args = Vec::new();
@@ -1280,7 +1280,7 @@ WantedBy=multi-user.target
 
     async fn stop_docker_plugin(&self, plugin_name: &str) -> Result<serde_json::Value> {
         let output = Command::new("docker")
-            .args(&["stop", plugin_name])
+            .args(["stop", plugin_name])
             .output()?;
 
         if !output.status.success() {
@@ -1289,7 +1289,7 @@ WantedBy=multi-user.target
         }
 
         // Remove the container
-        let _ = Command::new("docker").args(&["rm", plugin_name]).output();
+        let _ = Command::new("docker").args(["rm", plugin_name]).output();
 
         info!("Stopped Docker plugin: {}", plugin_name);
 
@@ -1305,7 +1305,7 @@ WantedBy=multi-user.target
         _info: &PluginInfo,
     ) -> Result<serde_json::Value> {
         let output = Command::new("sudo")
-            .args(&["systemctl", "start", plugin_name])
+            .args(["systemctl", "start", plugin_name])
             .output()?;
 
         if !output.status.success() {
@@ -1327,7 +1327,7 @@ WantedBy=multi-user.target
 
     async fn stop_service_plugin(&self, plugin_name: &str) -> Result<serde_json::Value> {
         let output = Command::new("sudo")
-            .args(&["systemctl", "stop", plugin_name])
+            .args(["systemctl", "stop", plugin_name])
             .output()?;
 
         if !output.status.success() {
@@ -1345,8 +1345,8 @@ WantedBy=multi-user.target
 
     async fn remove_docker_plugin(&self, plugin_name: &str) -> Result<()> {
         // Stop and remove container
-        let _ = Command::new("docker").args(&["stop", plugin_name]).output();
-        let _ = Command::new("docker").args(&["rm", plugin_name]).output();
+        let _ = Command::new("docker").args(["stop", plugin_name]).output();
+        let _ = Command::new("docker").args(["rm", plugin_name]).output();
 
         // Remove image (optional - might want to keep for reinstall)
         // let _ = Command::new("docker").args(&["rmi", &image_name]).output();
@@ -1361,7 +1361,7 @@ WantedBy=multi-user.target
             let package_name = plugin_name; // This should be stored in plugin config
 
             let output = Command::new("sudo")
-                .args(&["apt", "remove", "-y", package_name])
+                .args(["apt", "remove", "-y", package_name])
                 .output()?;
 
             if !output.status.success() {
@@ -1609,7 +1609,7 @@ WantedBy=multi-user.target
         let service_name = format!("aetheric-plugin-{}", plugin_info.name);
 
         let output = Command::new("systemctl")
-            .args(&["is-active", &service_name])
+            .args(["is-active", &service_name])
             .output()?;
 
         let status = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -1622,7 +1622,7 @@ WantedBy=multi-user.target
         let container_name = format!("aetheric-plugin-{}", plugin_info.name);
 
         let output = Command::new("docker")
-            .args(&["inspect", "--format", "{{.State.Status}}", &container_name])
+            .args(["inspect", "--format", "{{.State.Status}}", &container_name])
             .output()?;
 
         if !output.status.success() {
@@ -1650,7 +1650,7 @@ WantedBy=multi-user.target
 
         // Get CPU usage
         let cpu_usage = match Command::new("systemctl")
-            .args(&["show", &service_name, "--property=CPUUsageNSec"])
+            .args(["show", &service_name, "--property=CPUUsageNSec"])
             .output()
         {
             Ok(output) => {
@@ -1670,7 +1670,7 @@ WantedBy=multi-user.target
 
         // Get memory usage
         let memory_usage = match Command::new("systemctl")
-            .args(&["show", &service_name, "--property=MemoryCurrent"])
+            .args(["show", &service_name, "--property=MemoryCurrent"])
             .output()
         {
             Ok(output) => {
@@ -1696,7 +1696,7 @@ WantedBy=multi-user.target
 
         // Get resource stats
         let output = match Command::new("docker")
-            .args(&[
+            .args([
                 "stats",
                 "--no-stream",
                 "--format",

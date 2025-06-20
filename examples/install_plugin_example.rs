@@ -11,8 +11,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let aetheric_home = home.join(".aetheric");
 
     // Create directories if they don't exist
-    std::fs::create_dir_all(&aetheric_home.join("plugins"))?;
-    std::fs::create_dir_all(&aetheric_home.join("tmp"))?;
+    std::fs::create_dir_all(aetheric_home.join("plugins"))?;
+    std::fs::create_dir_all(aetheric_home.join("tmp"))?;
 
     let mut config = AethericConfig::default();
     config.plugins = PluginsConfig {
