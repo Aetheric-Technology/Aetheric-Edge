@@ -68,7 +68,7 @@ nix = "0.27"
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.6"
-winapi = { version = "0.3", features = ["winuser", "winsvc", "winerror", "handleapi", "processthreadsapi", "winbase"] }
+winapi = { version = "0.3", features = ["winuser", "winsvc", "winerror", "handleapi", "processthreadsapi", "winbase", "securitybaseapi", "winnt"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
