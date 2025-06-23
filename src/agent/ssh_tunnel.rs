@@ -381,6 +381,7 @@ impl SshTunnelManager {
         Ok(local_port)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn handle_tunnel_connections(
         listener: TcpListener,
         session_id: String,

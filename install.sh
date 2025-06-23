@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Aetheric Edge Installation Script
-# Installs Aetheric Edge with local MQTT broker (Mosquitto) and cloud bridge configuration
-# Similar architecture to thin-edge.io
+# Installs Aetheric Edge with local MQTT broker (Mosquitto)
+# Enterprise IoT edge computing platform
 
 set -e
 set -o pipefail
@@ -164,13 +164,22 @@ install_dependencies() {
 install_binaries() {
     log "Installing Aetheric Edge binaries..."
     
+    # Always stop services before replacing binaries
+    log "Stopping any running services..."
+    systemctl stop aetheric-agent 2>/dev/null || true
+    
+    # Remove old binaries and symlinks
+    log "Removing old binaries..."
+    rm -f "$AETHERIC_HOME/bin/aetheric-agent" "$AETHERIC_HOME/bin/aetheric"
+    rm -f /usr/local/bin/aetheric /usr/local/bin/aetheric-agent
+    
     # For now, we'll build from source since we don't have GitHub releases yet
     # In production, this would download pre-built binaries from GitHub releases
     
     if [[ -f "target/release/aetheric-agent" ]] && [[ -f "target/release/aetheric" ]]; then
         log "Using local binaries..."
-        cp target/release/aetheric-agent "$AETHERIC_HOME/bin/"
-        cp target/release/aetheric "$AETHERIC_HOME/bin/"
+        cp -f target/release/aetheric-agent "$AETHERIC_HOME/bin/"
+        cp -f target/release/aetheric "$AETHERIC_HOME/bin/"
     else
         log "Building from source..."
         # Install Rust if not present
@@ -182,8 +191,8 @@ install_binaries() {
         
         # Build the project
         cargo build --release
-        cp target/release/aetheric-agent "$AETHERIC_HOME/bin/"
-        cp target/release/aetheric "$AETHERIC_HOME/bin/"
+        cp -f target/release/aetheric-agent "$AETHERIC_HOME/bin/"
+        cp -f target/release/aetheric "$AETHERIC_HOME/bin/"
     fi
     
     # Make binaries executable
@@ -194,11 +203,11 @@ install_binaries() {
     chown "$AETHERIC_USER:$AETHERIC_USER" "$AETHERIC_HOME/bin/aetheric-agent"
     chown "$AETHERIC_USER:$AETHERIC_USER" "$AETHERIC_HOME/bin/aetheric"
     
-    # Create symlinks for global access
+    # Create fresh symlinks for global access
     ln -sf "$AETHERIC_HOME/bin/aetheric" /usr/local/bin/aetheric
     ln -sf "$AETHERIC_HOME/bin/aetheric-agent" /usr/local/bin/aetheric-agent
     
-    log_success "Aetheric Edge binaries installed"
+    log_success "Aetheric Edge binaries installed (replaced existing)"
 }
 
 # Configure Mosquitto MQTT broker
@@ -230,6 +239,7 @@ pid_file /var/run/mosquitto/mosquitto.pid
 # Data persistence
 persistence true
 persistence_location /var/lib/mosquitto/
+persistence_file mosquitto.db
 
 # Logging
 log_dest file /var/log/mosquitto/mosquitto.log
@@ -259,21 +269,21 @@ allow_anonymous true
 # Message handling
 # =============================================================================
 
-# Maximum queued messages per client
-max_queued_messages 1000
+# Message handling and retention for 7-day offline support
+max_queued_messages 0
+max_queued_bytes 0
+queue_qos0_messages true
+retain_available true
+persistent_client_expiration 7d
 
 # Message size limit (1MB)
-message_size_limit 1048576
-
-# Keep alive settings
-keepalive_interval 60
+max_packet_size 1048576
 
 # =============================================================================
-# Bridge configuration (will be configured per cloud)
+# Bridge configuration directory
 # =============================================================================
 
-# Bridge configurations will be added dynamically
-# by aetheric CLI when connecting to cloud providers
+# Bridge configurations can be added here if needed
 include_dir /etc/mosquitto/conf.d
 
 EOF
@@ -296,9 +306,16 @@ EOF
 create_default_config() {
     log "Creating default Aetheric Edge configuration..."
     
+    # Always backup existing config if present
+    if [[ -f "$AETHERIC_CONFIG_DIR/aetheric.toml" ]]; then
+        log "Backing up existing configuration..."
+        cp "$AETHERIC_CONFIG_DIR/aetheric.toml" "$AETHERIC_CONFIG_DIR/aetheric.toml.backup.$(date +%s)"
+    fi
+    
     # Generate a unique gateway ID
     GATEWAY_ID="aetheric-$(hostname)-$(date +%s | tail -c 6)"
     
+    # Always create fresh config
     cat > "$AETHERIC_CONFIG_DIR/aetheric.toml" << EOF
 # Aetheric Edge Configuration
 # Generated on $(date)
@@ -348,8 +365,8 @@ max_files = 5
 
 EOF
 
-    # Set ownership and permissions
-    chown "$AETHERIC_USER:$AETHERIC_USER" "$AETHERIC_CONFIG_DIR/aetheric.toml"
+    # Set ownership and permissions (config should be owned by the actual user, not aetheric system user)
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$AETHERIC_CONFIG_DIR/aetheric.toml"
     chmod 640 "$AETHERIC_CONFIG_DIR/aetheric.toml"
     
     log_success "Default configuration created with Gateway ID: $GATEWAY_ID"
@@ -385,9 +402,10 @@ Group=$ACTUAL_USER
 WorkingDirectory=$ACTUAL_HOME
 RuntimeDirectory=aetheric-agent
 ExecStartPre=+-/usr/local/bin/aetheric init
-ExecStart=/usr/local/bin/aetheric-agent --config $ACTUAL_HOME/.aetheric/config/aetheric.toml
-Restart=on-failure
-RestartSec=5
+ExecStart=/usr/local/bin/aetheric-agent --config $ACTUAL_HOME/.aetheric/aetheric.toml
+Restart=always
+RestartSec=10
+StartLimitBurst=5
 Environment="HOME=$ACTUAL_HOME"
 Environment="USER=$ACTUAL_USER"
 
@@ -405,36 +423,6 @@ EOF
     log "Service will run as: $ACTUAL_USER with config: $ACTUAL_HOME/.aetheric/config/aetheric.toml"
 }
 
-# Create cloud bridge configuration helper
-create_bridge_helper() {
-    log "Creating cloud bridge configuration helper..."
-    
-    # Copy the enhanced bridge configuration script
-    if [[ -f "scripts/configure-bridge.sh" ]]; then
-        cp "scripts/configure-bridge.sh" "$AETHERIC_HOME/bin/"
-        chmod +x "$AETHERIC_HOME/bin/configure-bridge.sh"
-        chown "$AETHERIC_USER:$AETHERIC_USER" "$AETHERIC_HOME/bin/configure-bridge.sh"
-        
-        # Create a symlink for global access
-        ln -sf "$AETHERIC_HOME/bin/configure-bridge.sh" /usr/local/bin/aetheric-bridge
-        
-        log_success "Enhanced bridge configuration helper installed"
-    else
-        log_warning "Enhanced bridge script not found, creating basic version..."
-        
-        # Create a basic bridge helper if the enhanced version is not available
-        cat > "$AETHERIC_HOME/bin/configure-bridge.sh" << 'EOF'
-#!/bin/bash
-echo "Basic bridge configuration helper"
-echo "For full functionality, please use the enhanced version from the repository"
-echo "Usage: aetheric-bridge <provider> <endpoint> [options]"
-EOF
-        chmod +x "$AETHERIC_HOME/bin/configure-bridge.sh"
-        chown "$AETHERIC_USER:$AETHERIC_USER" "$AETHERIC_HOME/bin/configure-bridge.sh"
-        
-        log_success "Basic bridge configuration helper created"
-    fi
-}
 
 # Enable and start services
 start_services() {
@@ -452,99 +440,20 @@ start_services() {
         exit 1
     fi
     
-    # Note: aetheric-agent service will be configured by gateway install script
-    log_success "Mosquitto service configured and started"
+    # Enable and attempt to start aetheric-agent service
+    systemctl enable aetheric-agent
+    
+    # Try to start aetheric-agent (will auto-restart if it fails due to dependencies)
+    log "Starting Aetheric Agent..."
+    if systemctl start aetheric-agent; then
+        log_success "Aetheric Agent started successfully"
+    else
+        log_warning "Aetheric Agent failed to start initially - it will auto-restart when dependencies are ready"
+    fi
+    
+    log_success "Services configured - Mosquitto started, Aetheric Agent enabled with auto-restart"
 }
 
-# Create CLI wrapper for easy access
-create_cli_wrapper() {
-    log "Creating CLI wrapper..."
-    
-    cat > /usr/local/bin/aetheric-cli << 'EOF'
-#!/bin/bash
-
-# Aetheric Edge CLI Wrapper
-# Provides convenient commands for managing Aetheric Edge
-
-COMMAND="$1"
-shift
-
-case "$COMMAND" in
-    "status")
-        echo "=== Aetheric Edge Status ==="
-        echo "Agent Status:"
-        systemctl status aetheric-agent --no-pager -l
-        echo ""
-        echo "MQTT Broker Status:"
-        systemctl status mosquitto --no-pager -l
-        echo ""
-        echo "Active Connections:"
-        ss -tulpn | grep :1883
-        ;;
-    "start")
-        echo "Starting Aetheric Edge services..."
-        sudo systemctl start mosquitto aetheric-agent
-        ;;
-    "stop")
-        echo "Stopping Aetheric Edge services..."
-        sudo systemctl stop aetheric-agent mosquitto
-        ;;
-    "restart")
-        echo "Restarting Aetheric Edge services..."
-        sudo systemctl restart mosquitto aetheric-agent
-        ;;
-    "logs")
-        SERVICE="${1:-aetheric-agent}"
-        echo "=== $SERVICE Logs ==="
-        journalctl -u "$SERVICE" -f
-        ;;
-    "config")
-        aetheric "$@"
-        ;;
-    "cert")
-        aetheric cert "$@"
-        ;;
-    "connect")
-        PROVIDER="$1"
-        ENDPOINT="$2"
-        shift 2
-        echo "Connecting to $PROVIDER at $ENDPOINT..."
-        # Use the enhanced bridge configuration script
-        if command -v aetheric-bridge &> /dev/null; then
-            aetheric-bridge "$PROVIDER" "$ENDPOINT" "$@"
-        else
-            /opt/aetheric-edge/bin/configure-bridge.sh "$PROVIDER" "$ENDPOINT" "$@"
-        fi
-        ;;
-    *)
-        echo "Aetheric Edge CLI"
-        echo "Usage: aetheric-cli <command> [options]"
-        echo ""
-        echo "Commands:"
-        echo "  status    - Show service status"
-        echo "  start     - Start all services"
-        echo "  stop      - Stop all services"
-        echo "  restart   - Restart all services"
-        echo "  logs      - Show service logs"
-        echo "  config    - Manage configuration"
-        echo "  cert      - Manage certificates"
-        echo "  connect   - Connect to cloud provider"
-        echo ""
-        echo "Examples:"
-        echo "  aetheric-cli status"
-        echo "  aetheric-cli logs aetheric-agent"
-        echo "  aetheric-cli connect aws your-endpoint.iot.region.amazonaws.com --cert-auth"
-        echo "  aetheric-cli connect azure myhub.azure-devices.net --mixed-auth --username 'hub/device' --password 'sas-token'"
-        echo "  aetheric-cli connect custom mqtt.example.com --username-auth --username user --password pass"
-        ;;
-esac
-
-EOF
-
-    chmod +x /usr/local/bin/aetheric-cli
-    
-    log_success "CLI wrapper created"
-}
 
 # Main installation function
 main() {
@@ -560,12 +469,25 @@ main() {
     echo "  • Management CLI tools"
     echo ""
     
-    # Confirm installation
-    read -p "Do you want to continue? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Installation cancelled."
-        exit 0
+    # Check for -y flag to skip confirmation
+    SKIP_CONFIRM=false
+    for arg in "$@"; do
+        if [[ "$arg" == "-y" || "$arg" == "--yes" ]]; then
+            SKIP_CONFIRM=true
+            break
+        fi
+    done
+    
+    # Confirm installation (unless -y flag is used)
+    if [[ "$SKIP_CONFIRM" == "false" ]]; then
+        read -p "Do you want to continue? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Installation cancelled."
+            exit 0
+        fi
+    else
+        echo "Auto-confirmed with -y flag"
     fi
     
     # Run installation steps
@@ -578,9 +500,7 @@ main() {
     configure_mosquitto
     create_default_config
     create_systemd_service
-    create_bridge_helper
     start_services
-    create_cli_wrapper
     
     echo ""
     echo -e "${GREEN}================================================================${NC}"
@@ -604,15 +524,8 @@ main() {
     echo "  3. Use gateway install script to configure and start agent"
     echo ""
     echo "  4. Check status:"
-    echo "     aetheric-cli status"
+    echo "     systemctl status aetheric-agent mosquitto"
     echo ""
-    echo "  5. Connect to cloud (examples):"
-    echo "     # AWS with certificates:"
-    echo "     aetheric-cli connect aws your-endpoint.iot.region.amazonaws.com --cert-auth"
-    echo "     # Azure with mixed auth:"
-    echo "     aetheric-cli connect azure myhub.azure-devices.net --mixed-auth --username 'hub/device' --password 'sas-token'"
-    echo "     # Custom broker with username/password:"
-    echo "     aetheric-cli connect custom mqtt.example.com --username-auth --username user --password pass"
     echo ""
     echo "📖 Documentation:"
     echo "  • Configuration: cat $AETHERIC_CONFIG_DIR/aetheric.toml"

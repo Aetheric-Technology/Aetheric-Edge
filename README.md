@@ -1,6 +1,6 @@
 # Aetheric Edge
 
-A simplified edge computing agent inspired by thin-edge.io, built in Rust for high performance and reliability.
+A powerful enterprise IoT edge computing platform, built in Rust for high performance and reliability.
 
 Aetheric Edge consists of two main components:
 - **aetheric-agent**: The main edge agent that handles MQTT communication and device management
@@ -270,7 +270,7 @@ RUST_LOG=debug cargo run -- --verbose
 
 ### aetheric (Management CLI)
 
-The `aetheric` CLI tool provides device management capabilities similar to thin-edge.io's `tedge` command:
+The `aetheric` CLI tool provides comprehensive device management capabilities:
 
 ```bash
 # Certificate operations
@@ -298,11 +298,11 @@ aetheric-agent --config <path>    # Use custom config file
 aetheric-agent --generate-config  # Create default config
 ```
 
-## Comparison with thin-edge.io
+## Features
 
-Aetheric Edge is inspired by thin-edge.io but focuses on simplicity and core functionality:
+Aetheric Edge focuses on simplicity and core functionality:
 
-| Feature | thin-edge.io | Aetheric Edge |
+| Feature | Description | Status |
 |---------|--------------|---------------|
 | MQTT Communication | ✅ | ✅ |
 | Health Monitoring | ✅ | ✅ |

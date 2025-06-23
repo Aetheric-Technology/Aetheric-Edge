@@ -2,7 +2,7 @@
 name = "aetheric-edge"
 version = "0.1.0"
 edition = "2021"
-description = "A simplified edge computing agent inspired by thin-edge.io"
+description = "Aetheric Edge - Enterprise IoT edge computing platform"
 license = "MIT OR Apache-2.0"
 authors = ["Ramhari Gyawali <ramhari.gyawali@outlook.com>"]
 

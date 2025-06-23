@@ -622,6 +622,7 @@ impl PluginManager {
         }))
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn handle_chunked_transfer(
         &self,
         plugin_name: &str,
