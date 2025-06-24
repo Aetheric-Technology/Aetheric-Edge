@@ -37,6 +37,52 @@ impl MqttClient {
         ))
     }
 
+    pub async fn new_with_config(
+        config: &crate::config::MqttConfig,
+        gateway_id: String,
+        command_sender: mpsc::UnboundedSender<CommandMessage>,
+    ) -> Result<(Self, EventLoop)> {
+        let mut mqtt_options = MqttOptions::new(&gateway_id, &config.host, config.port);
+        mqtt_options.set_keep_alive(Duration::from_secs(30));
+        mqtt_options.set_clean_session(false);
+        mqtt_options.set_max_packet_size(1024 * 1024, 1024 * 1024); // 1MB
+
+        // Set credentials if provided
+        if let Some(username) = &config.username {
+            if let Some(password) = &config.password {
+                mqtt_options.set_credentials(username, password);
+            }
+        }
+
+        // Set Last Will Testament (LWT) for offline detection
+        let will_topic = format!("ae/{}/status", gateway_id);
+        let will_payload = serde_json::json!({
+            "gateway_id": &gateway_id,
+            "status": "offline",
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "reason": "connection_lost"
+        }).to_string();
+        
+        mqtt_options.set_last_will(rumqttc::LastWill::new(
+            will_topic,
+            will_payload.into_bytes(),
+            QoS::AtLeastOnce,
+            true, // Retain flag
+        ));
+
+        let (client, event_loop) = AsyncClient::new(mqtt_options, 100);
+        let topic_builder = TopicBuilder::new(gateway_id.clone());
+
+        // Publish online status immediately after connection
+        let mqtt_client = Self {
+            client,
+            topic_builder,
+            command_sender,
+        };
+
+        Ok((mqtt_client, event_loop))
+    }
+
     pub async fn subscribe_to_commands(&self) -> Result<()> {
         let commands_topic = self.topic_builder.commands();
         info!("Subscribing to commands topic: {}", commands_topic);
@@ -182,6 +228,25 @@ impl MqttClient {
             .subscribe(topic, QoS::AtLeastOnce)
             .await
             .context("Failed to subscribe to raw topic")?;
+        Ok(())
+    }
+
+    pub async fn publish_online_status(&self, gateway_id: &str) -> Result<()> {
+        let status_topic = format!("ae/{}/status", gateway_id);
+        let status_payload = serde_json::json!({
+            "gateway_id": gateway_id,
+            "status": "online",
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "reason": "connected"
+        }).to_string();
+        
+        debug!("Publishing online status to topic: {}", status_topic);
+        self.client
+            .publish(&status_topic, QoS::AtLeastOnce, true, status_payload.as_bytes())
+            .await
+            .context("Failed to publish online status")?;
+
+        info!("Published online status with retain flag");
         Ok(())
     }
 }

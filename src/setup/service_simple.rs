@@ -298,6 +298,14 @@ impl ServiceManager {
         info!("Creating systemd service...");
 
         let service_file_path = format!("/etc/systemd/system/{}.service", self.service_name);
+        // Determine the actual user who will run the service
+        let actual_user = std::env::var("SUDO_USER").unwrap_or_else(|_| "admin".to_string());
+        let user_config_path = if actual_user == "root" {
+            self.config_path.display().to_string()
+        } else {
+            format!("/home/{}/.aetheric/aetheric.toml", actual_user)
+        };
+
         let service_content = format!(
             r#"[Unit]
 Description={description}
@@ -308,19 +316,21 @@ Requires=mosquitto.service
 
 [Service]
 Type=simple
-User=aetheric
+User={user}
 RuntimeDirectory=aetheric-agent
 ExecStartPre=+-{executable} init
 ExecStart={executable} --config {config}
-Restart=on-failure
-RestartSec=5
+Restart=always
+RestartSec=10
+StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target
 "#,
             description = self.description,
+            user = actual_user,
             executable = self.executable_path.display(),
-            config = self.config_path.display()
+            config = user_config_path
         );
 
         std::fs::write(&service_file_path, service_content)
@@ -707,6 +717,12 @@ impl MqttBrokerManager {
         // Check if our include is already present
         if existing_content.contains(&include_line) {
             info!("Aetheric include already present in mosquitto.conf");
+            return Ok(());
+        }
+
+        // Check if there are already any include_dir lines that might conflict
+        if existing_content.lines().filter(|line| line.trim().starts_with("include_dir")).count() > 0 {
+            info!("Include directory already configured in mosquitto.conf");
             return Ok(());
         }
 

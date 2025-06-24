@@ -31,8 +31,8 @@ impl HealthMonitor {
         let mut health_interval = interval(Duration::from_secs(
             self.config.health.report_interval_seconds,
         ));
-        let mut heartbeat_interval = interval(Duration::from_secs(15)); // Heartbeat every 15 seconds
-        let mut plugin_health_interval = interval(Duration::from_secs(60)); // Plugin health check every minute
+        let mut heartbeat_interval = interval(Duration::from_secs(90)); // Heartbeat every 90 seconds
+        let mut plugin_health_interval = interval(Duration::from_secs(90)); // Plugin health check every 90 seconds
 
         loop {
             tokio::select! {

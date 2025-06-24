@@ -306,16 +306,29 @@ EOF
 create_default_config() {
     log "Creating default Aetheric Edge configuration..."
     
-    # Always backup existing config if present
+    # Check if configuration already exists
     if [[ -f "$AETHERIC_CONFIG_DIR/aetheric.toml" ]]; then
-        log "Backing up existing configuration..."
-        cp "$AETHERIC_CONFIG_DIR/aetheric.toml" "$AETHERIC_CONFIG_DIR/aetheric.toml.backup.$(date +%s)"
+        log "Configuration already exists, preserving existing settings..."
+        log "Existing config: $AETHERIC_CONFIG_DIR/aetheric.toml"
+        
+        # Verify configuration has required sections
+        if grep -q "\[gateway\]" "$AETHERIC_CONFIG_DIR/aetheric.toml" && \
+           grep -q "\[mqtt\]" "$AETHERIC_CONFIG_DIR/aetheric.toml"; then
+            log_success "Existing configuration appears valid, keeping it"
+            # Set ownership to ensure user can access it
+            chown "$ACTUAL_USER:$ACTUAL_USER" "$AETHERIC_CONFIG_DIR/aetheric.toml"
+            return 0
+        else
+            log "Existing configuration appears invalid, backing up and creating new one..."
+            cp "$AETHERIC_CONFIG_DIR/aetheric.toml" "$AETHERIC_CONFIG_DIR/aetheric.toml.backup.$(date +%s)"
+        fi
     fi
     
     # Generate a unique gateway ID
     GATEWAY_ID="aetheric-$(hostname)-$(date +%s | tail -c 6)"
     
-    # Always create fresh config
+    # Create fresh config only if none exists or existing is invalid
+    log "Creating new configuration file..."
     cat > "$AETHERIC_CONFIG_DIR/aetheric.toml" << EOF
 # Aetheric Edge Configuration
 # Generated on $(date)

@@ -76,10 +76,9 @@ async fn main() -> Result<()> {
     // Create command channel
     let (command_sender, command_receiver) = mpsc::unbounded_channel();
 
-    // Create MQTT client
-    let (mqtt_client, event_loop) = MqttClient::new(
-        config.mqtt.host.clone(),
-        config.mqtt.port,
+    // Create MQTT client with full configuration including LWT
+    let (mqtt_client, event_loop) = MqttClient::new_with_config(
+        &config.mqtt,
         config.gateway.id.clone(),
         command_sender,
     )

@@ -49,6 +49,16 @@ impl Agent {
     pub async fn run(mut self) -> Result<()> {
         info!("Starting Aetheric Edge Agent");
 
+        // Publish online status
+        if let Err(e) = self.mqtt_client.publish_online_status(&self.config.gateway.id).await {
+            error!("Failed to publish online status: {}", e);
+        }
+
+        // Send startup event
+        if let Err(e) = self.health_monitor.send_startup_event(&self.mqtt_client).await {
+            error!("Failed to send startup event: {}", e);
+        }
+
         // Start SSH tunnel manager
         if let Err(e) = self.ssh_tunnel_manager.start().await {
             error!("Failed to start SSH tunnel manager: {}", e);
