@@ -32,6 +32,25 @@ Aetheric Edge follows a modular architecture with these core components:
 
 ### Installation
 
+#### Quick Install (Recommended)
+
+```bash
+# Install from GitHub repository
+curl -fsSL "https://raw.githubusercontent.com/Aetheric-Technology/Aetheric-Edge/main/install.sh" | bash -s -- -y
+
+# Or install from local source (for development)
+sudo bash /home/admin/Desktop/Projects/Aetheric-Edge/install.sh -y
+```
+
+This will:
+- Install system dependencies (Mosquitto MQTT broker)
+- Install `aetheric-agent` and `aetheric` binaries
+- Configure systemd services with auto-restart
+- Create default configuration files
+- Set up user directories and permissions
+
+#### Manual Build and Install
+
 ```bash
 # Clone and build
 git clone <repository-url>
@@ -48,25 +67,34 @@ This will install:
 
 ### Setup and Configuration
 
-1. **Initialize Configuration**:
-```bash
-aetheric config init
-```
+After installation with the install script, the system is ready to use. For additional configuration:
 
-2. **Create Device Certificate**:
-```bash
-aetheric cert create my-device-001 --san localhost --san 192.168.1.100
-```
-
-3. **Configure Device Settings**:
-```bash
-aetheric config set gateway.id my-device-001
-aetheric config set mqtt.host mqtt.example.com
-```
-
-4. **View Configuration**:
+1. **View Current Configuration**:
 ```bash
 aetheric config show
+```
+
+2. **Update Gateway Settings** (optional):
+```bash
+aetheric config set gateway.name "My Edge Device"
+aetheric config set gateway.location "Building A, Floor 2"
+```
+
+3. **Configure Remote MQTT** (if needed):
+```bash
+aetheric config set mqtt.host your-mqtt-broker.com
+aetheric config set mqtt.port 8883
+aetheric config set mqtt.tls true
+```
+
+4. **Create Device Certificate** (if using TLS):
+```bash
+aetheric cert create $(hostname) --san localhost --san $(hostname -I | awk '{print $1}')
+```
+
+5. **Check Service Status**:
+```bash
+systemctl status aetheric-agent mosquitto
 ```
 
 ### Running the Agent
