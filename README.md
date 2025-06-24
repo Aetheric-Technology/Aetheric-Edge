@@ -35,8 +35,8 @@ Aetheric Edge follows a modular architecture with these core components:
 #### Quick Install (Recommended)
 
 ```bash
-# Install from GitHub repository
-curl -fsSL "https://raw.githubusercontent.com/Aetheric-Technology/Aetheric-Edge/main/install.sh" | bash -s -- -y
+# Install from GitHub releases
+curl -fsSL "https://github.com/Aetheric-Technology/Aetheric-Edge/releases/latest/download/install.sh" | bash -s -- -y
 
 # Or install from local source (for development)
 sudo bash /home/admin/Desktop/Projects/Aetheric-Edge/install.sh -y

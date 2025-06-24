@@ -24,7 +24,12 @@ AETHERIC_LOG_DIR="$AETHERIC_USER_DIR/logs"
 AETHERIC_CERTS_DIR="$AETHERIC_USER_DIR/certs"
 MOSQUITTO_CONFIG_DIR="/etc/mosquitto"
 MOSQUITTO_DATA_DIR="/var/lib/mosquitto"
+MOSQUITTO_BRIDGE_DIR="/etc/mosquitto/bridges"
 SYSTEMD_DIR="/etc/systemd/system"
+
+# Installation flags
+FORCE_REPLACE=false
+SKIP_CONFIRM=false
 
 # GitHub release settings (adjust these for your actual release)
 GITHUB_REPO="your-org/aetheric-edge"  # Replace with actual repo
@@ -45,6 +50,24 @@ log_warning() {
 
 log_error() {
     echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ❌ $1${NC}"
+}
+
+# Show usage information
+show_usage() {
+    echo "Aetheric Edge Installation Script"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  -y, --yes     Skip confirmation prompts"
+    echo "  -f, --force   Force replace existing configurations"
+    echo "  -h, --help    Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0              # Interactive installation"
+    echo "  $0 -y           # Auto-confirm installation"
+    echo "  $0 -f           # Force replace existing configs"
+    echo "  $0 -y -f        # Auto-confirm + force replace"
 }
 
 # Check if running as root
@@ -248,8 +271,14 @@ log_type error
 log_type warning
 log_type notice
 log_type information
+log_type subscribe
+log_type unsubscribe
 log_timestamp true
 connection_messages true
+
+# Core settings
+per_listener_settings true
+message_size_limit 268435455
 
 # =============================================================================
 # Local MQTT broker settings
@@ -259,6 +288,7 @@ connection_messages true
 listener 1883 127.0.0.1
 protocol mqtt
 allow_anonymous true
+require_certificate false
 
 # WebSocket listener (for web interfaces)
 listener 9001 127.0.0.1
@@ -276,20 +306,34 @@ queue_qos0_messages true
 retain_available true
 persistent_client_expiration 7d
 
-# Message size limit (1MB)
-max_packet_size 1048576
-
 # =============================================================================
-# Bridge configuration directory
+# Bridge configuration framework
 # =============================================================================
 
-# Bridge configurations can be added here if needed
-include_dir /etc/mosquitto/conf.d
+# Include bridge configurations
+include_dir /etc/mosquitto/bridges
 
 EOF
 
-    # Create conf.d directory for dynamic bridge configurations
+    # Create bridge configuration directory
+    mkdir -p "$MOSQUITTO_BRIDGE_DIR"
+    chown mosquitto:mosquitto "$MOSQUITTO_BRIDGE_DIR"
+    chmod 755 "$MOSQUITTO_BRIDGE_DIR"
+    
+    # Create bridge defaults configuration
+    cat > "$MOSQUITTO_BRIDGE_DIR/00-bridge-defaults.conf" << 'EOF'
+# Bridge defaults configuration
+# These settings are applied to all bridge connections
+
+# Note: per_listener_settings and message_size_limit are set in main mosquitto.conf
+# to avoid duplication errors
+
+EOF
+    
+    # Create conf.d directory for backward compatibility
     mkdir -p "$MOSQUITTO_CONFIG_DIR/conf.d"
+    chown mosquitto:mosquitto "$MOSQUITTO_CONFIG_DIR/conf.d"
+    chmod 755 "$MOSQUITTO_CONFIG_DIR/conf.d"
     
     # Create log directory
     mkdir -p /var/log/mosquitto
@@ -298,29 +342,37 @@ EOF
     # Set permissions
     chown mosquitto:mosquitto "$MOSQUITTO_CONFIG_DIR/mosquitto.conf"
     chmod 644 "$MOSQUITTO_CONFIG_DIR/mosquitto.conf"
+    chown mosquitto:mosquitto "$MOSQUITTO_BRIDGE_DIR/00-bridge-defaults.conf"
+    chmod 644 "$MOSQUITTO_BRIDGE_DIR/00-bridge-defaults.conf"
     
-    log_success "Mosquitto configured"
+    log_success "Mosquitto configured with bridge framework"
 }
 
 # Create default Aetheric Edge configuration
 create_default_config() {
     log "Creating default Aetheric Edge configuration..."
     
-    # Check if configuration already exists
+    # Check if configuration already exists and handle based on force flag
     if [[ -f "$AETHERIC_CONFIG_DIR/aetheric.toml" ]]; then
-        log "Configuration already exists, preserving existing settings..."
-        log "Existing config: $AETHERIC_CONFIG_DIR/aetheric.toml"
-        
-        # Verify configuration has required sections
-        if grep -q "\[gateway\]" "$AETHERIC_CONFIG_DIR/aetheric.toml" && \
-           grep -q "\[mqtt\]" "$AETHERIC_CONFIG_DIR/aetheric.toml"; then
-            log_success "Existing configuration appears valid, keeping it"
-            # Set ownership to ensure user can access it
-            chown "$ACTUAL_USER:$ACTUAL_USER" "$AETHERIC_CONFIG_DIR/aetheric.toml"
-            return 0
-        else
-            log "Existing configuration appears invalid, backing up and creating new one..."
+        if [[ "$FORCE_REPLACE" == "true" ]]; then
+            log_warning "Force mode: Backing up and replacing existing configuration..."
             cp "$AETHERIC_CONFIG_DIR/aetheric.toml" "$AETHERIC_CONFIG_DIR/aetheric.toml.backup.$(date +%s)"
+            log "Backup created: $AETHERIC_CONFIG_DIR/aetheric.toml.backup.$(date +%s)"
+        else
+            log "Configuration already exists, preserving existing settings..."
+            log "Existing config: $AETHERIC_CONFIG_DIR/aetheric.toml"
+            
+            # Verify configuration has required sections
+            if grep -q "\[gateway\]" "$AETHERIC_CONFIG_DIR/aetheric.toml" && \
+               grep -q "\[mqtt\]" "$AETHERIC_CONFIG_DIR/aetheric.toml"; then
+                log_success "Existing configuration appears valid, keeping it"
+                # Set ownership to ensure user can access it
+                chown "$ACTUAL_USER:$ACTUAL_USER" "$AETHERIC_CONFIG_DIR/aetheric.toml"
+                return 0
+            else
+                log "Existing configuration appears invalid, backing up and creating new one..."
+                cp "$AETHERIC_CONFIG_DIR/aetheric.toml" "$AETHERIC_CONFIG_DIR/aetheric.toml.backup.$(date +%s)"
+            fi
         fi
     fi
     
@@ -484,11 +536,26 @@ main() {
     
     # Check for -y flag to skip confirmation
     SKIP_CONFIRM=false
+    # Parse command line arguments
     for arg in "$@"; do
-        if [[ "$arg" == "-y" || "$arg" == "--yes" ]]; then
-            SKIP_CONFIRM=true
-            break
-        fi
+        case "$arg" in
+            -y|--yes)
+                SKIP_CONFIRM=true
+                ;;
+            -f|--force)
+                FORCE_REPLACE=true
+                log_warning "Force mode enabled - existing configurations will be replaced"
+                ;;
+            -h|--help)
+                show_usage
+                exit 0
+                ;;
+            *)
+                log_error "Unknown argument: $arg"
+                show_usage
+                exit 1
+                ;;
+        esac
     done
     
     # Confirm installation (unless -y flag is used)
